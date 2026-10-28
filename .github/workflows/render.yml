@@ -61,6 +61,7 @@ jobs:
           mkdir -p logs
           if [ ! -f mask.gpkg ]; then
             curl -fsSL -o in.osm.pbf "$OSM_PBF"
+            if [ -n "${OSM_BBOX:-}" ]; then osmium extract -b "$OSM_BBOX" in.osm.pbf -o cut.osm.pbf --overwrite && mv cut.osm.pbf in.osm.pbf; fi
             bash scripts/prepare_mask.sh in.osm.pbf mask.gpkg 2>&1 | tee logs/mask.log
             rm in.osm.pbf
           fi
@@ -80,7 +81,7 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/baumhoehe.py build --bbox "$BBOX" --zsplit $ZSPLIT --minzoom $MINZOOM --maxzoom $MAXZOOM \
-            --title "$TITLE" --shard ${{ matrix.shard }} --shards $SHARDS $OSMARG --source "$SRC" \
+            --title "$TITLE" --shard ${{ matrix.shard }} --shards $SHARDS $OSMARG --source "$SRC" --partition "${PARTITION:-roundrobin}" \
             --palette "${PALETTE:-standard}" ${DESCRIPTION:+--description "$DESCRIPTION"} ${ATTRIBUTION:+--attribution "$ATTRIBUTION"} \
             --out part${{ matrix.shard }}.mbtiles --lowres lowres 2>&1 | tee logs/build${{ matrix.shard }}.log
           ls -l part*.mbtiles lowres | tee -a logs/build${{ matrix.shard }}.log

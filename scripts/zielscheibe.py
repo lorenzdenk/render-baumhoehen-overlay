@@ -280,5 +280,34 @@ def main():
     print(f"fertig: {total} Kacheln, {os.path.getsize(a.out) / 1e6:.1f} MB", flush=True)
 
 
+def legend(path):
+    from PIL import Image as I
+    W = 960
+    im = I.new("RGB", (W, 120), (255, 255, 255))
+    d = ImageDraw.Draw(im)
+    f = ImageFont.truetype(FONT, 13); fb = ImageFont.truetype(FONTB, 13)
+    d.text((10, 6), "Baum ab 50 m (Farbe = Höhe):", font=fb, fill=(0, 0, 0))
+    for i in range(300):
+        d.line([(10 + i, 28), (10 + i, 46)], fill=hcol(50 + i / 300 * 50))
+    for v in (50, 60, 70, 80, 90, 100):
+        x = 10 + (v - 50) / 50 * 299
+        d.line([(x, 46), (x, 51)], fill=(0, 0, 0)); d.text((x - 9, 53), f"{v}", font=f, fill=(0, 0, 0))
+    x = 360
+    d.text((x, 6), "Zielscheibe um jede Gruppe:", font=fb, fill=(0, 0, 0))
+    cx, cy = x + 40, 70
+    for r, w in ((38, 2), (26, 2), (14, 3)):
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=RING, width=w)
+    d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=hcol(80), outline=(40, 20, 20))
+    d.text((x + 90, 30), "Ringe in 100 m, 250 m und 500 m Abstand zum nächsten Baum ab 50 m;", font=f, fill=(0, 0, 0))
+    d.text((x + 90, 48), "weit herausgezoomt mindestens 7 / 13 / 19 Pixel.", font=f, fill=(0, 0, 0))
+    d.text((x + 90, 66), "Beschriftung: Höhe des höchsten Baums der Gruppe,", font=f, fill=(0, 0, 0))
+    d.text((x + 90, 84), "ab Zoom 14 zusätzlich einzelne Bäume ab 60 m.", font=f, fill=(0, 0, 0))
+    im.save(path)
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) == 3 and sys.argv[1] == "legend":
+        legend(sys.argv[2])
+    else:
+        main()

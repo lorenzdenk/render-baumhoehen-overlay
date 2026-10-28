@@ -1,0 +1,56 @@
+name: Tasmania giant trees (target style)
+# Zielscheiben-Overlay der Bäume ab 50 m für ganz Tasmanien (nur LiDAR-Gebiete) und Liste der Gruppen ab 80 m.
+# Quelle: trees.csv im Release tas-data (aus "Archive Tasmania canopy").
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  NAME: tasmanien-riesenbaeume
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy python3-scipy python3-pil osmium-tool fonts-dejavu-core
+      - name: Trees and OSM filter
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p logs out
+          set -o pipefail
+          gh release download tas-data -p trees.csv -R "$GITHUB_REPOSITORY"
+          curl -fsSL -o au.osm.pbf https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf
+          osmium extract -b 143.5,-44.0,149.0,-39.3 au.osm.pbf -o tas.osm.pbf --overwrite
+          bash scripts/prepare_scanmask.sh tas.osm.pbf tasmask.gpkg 28355 2>&1 | tee logs/mask.log
+          python3 scripts/filter_trees.py trees.csv tasmask.gpkg trees_ok.csv trees_osm_removed.csv 2>&1 | tee logs/filter.log
+          python3 scripts/tree_groups.py trees_ok.csv out/tasmanien_gruppen_ab_80m --min 80 2>&1 | tee logs/groups.log
+          cp out/tasmanien_gruppen_ab_80m.* trees_osm_removed.csv logs/
+      - name: Render
+        run: |
+          set -o pipefail
+          python3 scripts/zielscheibe.py trees_ok.csv out/$NAME.mbtiles --minzoom 8 --maxzoom 14 \
+            --title "Riesenbäume Tasmanien (ab 50 m)" \
+            --attribution "Baumhöhe: Tree Canopy Height, theLIST © State of Tasmania, CC BY 3.0 AU, Daten geändert; Filter © OpenStreetMap-Mitwirkende" \
+            2>&1 | tee logs/render.log
+          python3 scripts/zielscheibe.py legend out/$NAME-legende.png
+          cp out/$NAME-legende.png logs/
+          python3 scripts/preview.py out/$NAME.mbtiles logs 9 11 13 14 2>&1 | tee -a logs/render.log || true
+          ls -l out | tee -a logs/render.log
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="riesenbaeume-tasmanien"
+          gh release view $TAG -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create $TAG -R "$GITHUB_REPOSITORY" \
+            -t "Riesenbäume Tasmanien (Zielscheiben-Overlay)" -n "Bäume ab 50 m aus theLIST Tree Canopy Height (LiDAR, 2 m; nur Gebiete mit LiDAR), Ringe in 100/250/500 m, Zoom 8–14, 512-px-WebP.
+          Quelle: theLIST © State of Tasmania, CC BY 3.0 AU, Daten geändert. Gebäude/Türme/Masten nach OSM entfernt (© OpenStreetMap-Mitwirkende).
+          Dazu: Liste aller Baumgruppen mit höchstem Baum ab 80 m (CSV, GeoJSON)."
+          gh release upload $TAG out/* -R "$GITHUB_REPOSITORY" --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "tas-ziel ${{ github.run_id }} ${{ job.status }}" tas-ziel-logs

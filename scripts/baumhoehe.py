@@ -23,6 +23,7 @@ Befehle:
   baumhoehe.py legend  legend.png
 """
 import argparse
+import csv
 import hashlib
 import io
 import math
@@ -168,6 +169,50 @@ def download_unit(args):
     return (e, n), sorted(os.path.join(d, f) for f in os.listdir(d) if f.endswith(".tif"))
 
 
+# ---------------------------------------------------------------- Archivkacheln (chm_archive.py)
+_index = {}
+
+
+def index_tiles(url, b3857, cache):
+    """Lädt die Archivkacheln (index.csv neben den Dateien), die ein 3857-Rechteck berühren."""
+    if url not in _index:
+        os.makedirs(cache, exist_ok=True)
+        with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
+            rows = list(csv.DictReader(io.StringIO(r.read().decode())))
+        _index[url] = rows
+    rows = _index[url]
+    if not rows:
+        return []
+    epsg = int(rows[0]["epsg"])
+    t = transformer(3857, epsg)
+    minx, miny, maxx, maxy = b3857
+    pts = [t.TransformPoint(minx + f * (maxx - minx), y)[:2] for f in np.linspace(0, 1, 11) for y in (miny, maxy)]
+    pts += [t.TransformPoint(x, miny + f * (maxy - miny))[:2] for f in np.linspace(0, 1, 11) for x in (minx, maxx)]
+    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    bx0, bx1, by0, by1 = min(xs) - 50, max(xs) + 50, min(ys) - 50, max(ys) + 50
+    base = url.rsplit("/", 1)[0]
+    need = [r["file"] for r in rows if float(r["minx"]) < bx1 and float(r["maxx"]) > bx0
+            and float(r["miny"]) < by1 and float(r["maxy"]) > by0]
+    out = []
+    for f in need:
+        p = os.path.join(cache, f)
+        if not os.path.exists(p):
+            for attempt in range(6):
+                try:
+                    with urllib.request.urlopen(urllib.request.Request(f"{base}/{f}", headers=UA), timeout=300) as r, \
+                            open(p + ".tmp", "wb") as o:
+                        shutil.copyfileobj(r, o)
+                    os.replace(p + ".tmp", p)
+                    break
+                except Exception as ex:
+                    print("    retry", f, ex, flush=True)
+                    time.sleep(5 * (attempt + 1))
+            else:
+                raise RuntimeError(f"Download fehlgeschlagen: {f}")
+        out.append(p)
+    return out
+
+
 # ---------------------------------------------------------------- Rendern
 def colorize(b1, b2, b3=None):
     """b1, b2: gemittelte Bänder, b3: Maximum (float). Gibt RGBA uint8 zurück oder None, wenn leer."""
@@ -274,11 +319,15 @@ def build_block(a, bx, by, cache, work, mb, pool):
         tifs = [t for _, f in got for t in f]
         print(f"  Block {z0}/{bx}/{by}: {len(units)} Einheiten, {len(tifs)} nDOM-Kacheln, "
               f"Download {time.time() - t0:.0f} s", flush=True)
+    elif a.source.startswith("index:"):
+        tifs = index_tiles(a.source[6:], b, cache)
+        print(f"  Block {z0}/{bx}/{by}: {len(tifs)} Archivkacheln, {time.time() - t0:.0f} s", flush=True)
     else:
         tifs = [a.source.split(":", 1)[1]]
         print(f"  Block {z0}/{bx}/{by}: Quelle {tifs[0]}", flush=True)
     if not tifs:
         return 0
+    scale = 0.5 if a.source.startswith("index:") else 1.0   # Archiv: Byte = Höhe * 2
 
     vrt = os.path.join(work, "src.vrt")
     gdal.BuildVRT(vrt, tifs)
@@ -318,6 +367,8 @@ def build_block(a, bx, by, cache, work, mb, pool):
         h = w.GetRasterBand(1).ReadAsArray()
         w = None
         valid = h > -9000
+        if scale != 1.0:
+            h = np.where(valid, h * scale, h)
         crown = valid & (h >= P["min_h"]) & (h < 125)
         if mask is not None:
             crown &= ~mask[r0:r0 + rows]
@@ -376,7 +427,11 @@ def build_block(a, bx, by, cache, work, mb, pool):
 
 def cmd_build(a):
     bl = blocks(a.bbox, a.zsplit)
-    mine = bl[a.shard::a.shards]
+    if a.partition == "contiguous":   # zusammenhängende Streifen: jeder Rechner braucht nur nahe Archivkacheln
+        k0, k1 = len(bl) * a.shard // a.shards, len(bl) * (a.shard + 1) // a.shards
+        mine = sorted(bl, key=lambda t: (t[0], t[1]))[k0:k1]
+    else:
+        mine = bl[a.shard::a.shards]
     print(f"Shard {a.shard}/{a.shards}: {len(mine)} von {len(bl)} Blockkacheln (z{a.zsplit})", flush=True)
     os.makedirs(a.lowres, exist_ok=True)
     cache = os.path.abspath(a.cache); work = os.path.abspath(a.work)
@@ -511,6 +566,7 @@ def main():
     p = sub.add_parser("build"); common(p)
     p.add_argument("--shard", type=int, default=0); p.add_argument("--shards", type=int, default=1)
     p.add_argument("--osm", default=None); p.add_argument("--cache", default="cache"); p.add_argument("--work", default="work")
+    p.add_argument("--partition", default="roundrobin", choices=["roundrobin", "contiguous"])
     p = sub.add_parser("overview"); common(p)
     p = sub.add_parser("legend"); p.add_argument("out"); p.add_argument("--palette", default="standard")
     p = sub.add_parser("merge"); p.add_argument("out"); p.add_argument("parts", nargs="+")
