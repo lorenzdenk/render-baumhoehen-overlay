@@ -6,7 +6,7 @@ Darstellung:
   - jeder Baum als Punkt, Farbe = Höhe (50 m gelb -> 100 m dunkelviolett), dunkler Rand
   - Ringe in 100 / 250 / 500 m Abstand zum nächsten hohen Baum (folgen der Form der Gruppe);
     weit herausgezoomt mindestens 7 / 13 / 19 px, damit sie sichtbar bleiben; Kernzone leicht getönt
-  - Beschriftung je Gruppe: Höhe des höchsten Baums; ab z14 zusätzlich einzelne Bäume ab 60 m
+  - Beschriftung je Gruppe: Höhe des höchsten Baums; ab z14 zusätzlich einzelne Bäume ab 70 m
   - Beschriftungen werden pro Zoomstufe global (für das ganze Gebiet) platziert, ohne Überlappung und
     über Kachelgrenzen hinweg (jede Kachel wird mit Rand gezeichnet und dann zugeschnitten)
 
@@ -40,7 +40,7 @@ RING_W = (2.6, 2.0, 1.6)
 RING_A = (230, 160, 100)
 CORE_A = 40
 CROWN_M = 7.0          # angenommener Kronenradius für die Darstellung
-TREE_LABEL_MIN = 60    # ab z14 einzelne Bäume beschriften
+TREE_LABEL_MIN = 70    # ab z14 einzelne Bäume beschriften
 
 
 def hcol(h):
@@ -121,11 +121,12 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
         txt = f"{H[top]:.0f} m"
         bb = dummy.textbbox((0, 0), txt, font=font, stroke_width=3)
         w, h = bb[2] - bb[0], bb[3] - bb[1]
-        # Kandidaten: oben rechts, unten rechts, oben links, unten links ausserhalb des 250-m-Rings
-        x1, y0 = gx[m].max() + rad[1] * 0.75, gy[m].min() - rad[1] * 0.75
-        x0, y1 = gx[m].min() - rad[1] * 0.75, gy[m].max() + rad[1] * 0.75
-        for (px, py) in ((x1, y0 - h), (x1, y1), (x0 - w, y0 - h), (x0 - w, y1)):
-            b = (px - 2, py - 2, px + w + 2, py + h + 2)
+        # Kandidaten direkt neben dem höchsten Baum: rechts, links, oben, unten
+        tx, ty = gx[top], gy[top]
+        off = 8
+        for (px, py) in ((tx + off, ty - h / 2 - 2), (tx - off - w, ty - h / 2 - 2), (tx - w / 2, ty - off - h - 4),
+                         (tx - w / 2, ty + off)):
+            b = (px - 2, py - 2, px + w + 2, py + h + 4)
             if free(b):
                 boxes.add(b); out.append((px, py, txt, "group"))
                 break
@@ -137,7 +138,7 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
             txt = f"{H[i]:.0f}"
             bb = dummy.textbbox((0, 0), txt, font=fonts, stroke_width=2)
             px, py = gx[i] + 6, gy[i] - 6
-            b = (px - 1, py - 1, px + bb[2] + 1, py + bb[3] + 1)
+            b = (px - 12, py - 12, px + bb[2] + 12, py + bb[3] + 12)   # Abstand zwischen Beschriftungen
             if free(b):
                 boxes.add(b); out.append((px, py, txt, "tree"))
     return out
@@ -161,7 +162,7 @@ def render(args):
     cx, cy = -R + (x + 0.5) * TILE * r, R - (y + 0.5) * TILE * r
     lat = math.degrees(2 * math.atan(math.exp(cy / 6378137.0)) - math.pi / 2)
     rad, g = radii_px(z, lat)
-    B = int(math.ceil(rad[2] + 12))
+    B = int(math.ceil(rad[0] + 2 * rad[1] + rad[2] + 12))   # Rand: Schliessung + äusserster Ring
     S = TILE + 2 * B
     ox, oy = x * TILE - B, y * TILE - B          # globale Pixel der linken oberen Ecke
     near = G["tree"].query_ball_point([cx, cy], (S / 2 * 1.5) * r)
@@ -180,14 +181,20 @@ def render(args):
             mask[y0:y1, x0:x1] |= disc[y0 - (ib - rr):y1 - (ib - rr), x0 - (ia - rr):x1 - (ia - rr)]
     rgba = np.zeros((S, S, 4), np.uint8)
     if mask.any():
+        # Kernzone = 100 m um die Bäume, Lücken bis ~500 m geschlossen (Schliessung über Abstandstransformationen),
+        # damit in dichten Beständen keine Ringe um jede Lücke entstehen. Ringe nur nach aussen.
         dist = ndimage.distance_transform_edt(~mask)
-        rgba[dist <= rad[0]] = (*RING, CORE_A)
-        for rr_, w, a in zip(rad, RING_W, RING_A):
-            rgba[np.abs(dist - rr_) <= w / 2] = (*RING, a)
+        dclose = rad[1]
+        grown = dist <= rad[0] + dclose
+        core = ndimage.distance_transform_edt(grown) > dclose
+        dout = ndimage.distance_transform_edt(~core)
+        rgba[core] = (*RING, CORE_A)
+        for rr_, w, a in zip((0.0, rad[1] - rad[0], rad[2] - rad[0]), RING_W, RING_A):
+            rgba[(dout > 0) & (np.abs(dout - rr_ - w / 2) <= w / 2 + 0.5)] = (*RING, a)
     img = Image.fromarray(rgba, "RGBA")
     d = ImageDraw.Draw(img)
     # Punkte ausdünnen: je Rasterzelle nur der höchste Baum (ab z14 alle)
-    cell = {8: 10, 9: 10, 10: 10, 11: 10, 12: 7, 13: 5}.get(z, 0)
+    cell = {8: 20, 9: 20, 10: 16, 11: 14, 12: 10, 13: 7}.get(z, 0)
     order = np.argsort(-H)
     if cell and len(order):
         key = (np.floor(px[order] / cell).astype(np.int64) * 100003 + np.floor(py[order] / cell).astype(np.int64))
@@ -316,7 +323,7 @@ def legend(path):
     d.text((x + 90, 30), "Ringe in 100 m, 250 m und 500 m Abstand zum nächsten Baum ab 50 m;", font=f, fill=(0, 0, 0))
     d.text((x + 90, 48), "weit herausgezoomt mindestens 7 / 13 / 19 Pixel.", font=f, fill=(0, 0, 0))
     d.text((x + 90, 66), "Beschriftung: Höhe des höchsten Baums der Gruppe,", font=f, fill=(0, 0, 0))
-    d.text((x + 90, 84), "ab Zoom 14 zusätzlich einzelne Bäume ab 60 m.", font=f, fill=(0, 0, 0))
+    d.text((x + 90, 84), "ab Zoom 14 zusätzlich einzelne Bäume ab 70 m.", font=f, fill=(0, 0, 0))
     im.save(path)
 
 
