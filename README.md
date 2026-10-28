@@ -49,3 +49,17 @@ Release `tas-data` ab; `SOURCE=release:tas-data/tas-chm-<name>.tif` in der Regio
 Farbskala `riesen`: unter 50 m zurückhaltend grau-blau, ab 50 m gelb → orange → rot → magenta → violett (100 m).
 Bäume ab 50 m werden auf allen Zoomstufen mit ihrer **Maximalhöhe** gezeichnet, verschwinden also auch weit
 herausgezoomt nicht im Mittelwert.
+
+## Workflows
+
+| Workflow | Zweck |
+|---|---|
+| Render Baumhöhen-Overlay | Farbskala-Overlay einer Region (`regions/*.env`), Release `baumhoehe-<NAME>` |
+| Archive Tasmania canopy | theLIST-Kronenhöhe einmalig laden → Release `tas-chm` (Kacheln) und `tas-data` (Baumliste) |
+| Tasmania giant trees (target style) | Zielscheiben-Overlay der Bäume ab 50 m + Gruppen ab 80 m → Release `riesenbaeume-tasmanien` |
+| BW tallest trees / … ranking | Suche nach den höchsten Bäumen in BW (nDOM, Nachmessung DOM1−DGM1) → Release `bw-data`, `data/` |
+| Repack release | Teildateien eines Releases zu möglichst wenigen Dateien < 1,9 GB zusammenfassen |
+
+Zielscheiben-Stil (`scripts/zielscheibe.py`): Punkt je Baum ab 50 m (Farbe = Höhe, 50 m gelb → 100 m violett),
+Ringe 100/250/500 m um jeden Bestand (Lücken bis ~500 m geschlossen, weit herausgezoomt mind. 7/13/19 px),
+Beschriftung = höchster Baum je Bestand, ab z14 einzelne Bäume ab 70 m. Punkte je Zoomstufe ausgedünnt (höchster je Zelle).
