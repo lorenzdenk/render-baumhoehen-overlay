@@ -94,6 +94,7 @@ def peaks(h, hmin):
     if not cand.any():
         return []
     mx = ndimage.maximum_filter(hz, footprint=D5, mode="constant")
+    hp = np.pad(h, 30, constant_values=np.nan)
     pk = cand & (hz >= mx)
     lab, nl = ndimage.label(pk)
     res = []
@@ -104,9 +105,8 @@ def peaks(h, hmin):
             continue
         top = float(hz[py, px])
         crown = int(((hz[py - 6:py + 7, px - 6:px + 7] >= 0.7 * top) & D6).sum())
-        y0, y1, x0, x1 = max(py - 30, 0), py + 31, max(px - 30, 0), px + 31
-        w30 = h[y0:y1, x0:x1]
-        dd = D30[30 - (py - y0):30 + (y1 - py), 30 - (px - x0):30 + (x1 - px)]
+        w30 = hp[py:py + 61, px:px + 61]  # hp ist um 30 px mit NaN erweitert
+        dd = D30
         m = dd & np.isfinite(w30)
         forest = float(((np.nan_to_num(w30) >= 15) & m).sum() / max(m.sum(), 1))
         res.append((py, px, top, crown, forest))
