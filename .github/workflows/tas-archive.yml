@@ -1,0 +1,64 @@
+name: Archive Tasmania canopy
+# Einmalig: theLIST "Tree Canopy Height" (LiDAR, 2 m, © State of Tasmania, CC BY 3.0 AU, ~8,4 GB ZIP) laden,
+# als Byte-Kacheln (Höhe*2, 255 = keine Daten, 20 x 20 km) im Release "tas-chm" ablegen und die Liste aller
+# Baumspitzen ab 50 m erzeugen (Release "tas-data": trees.csv, rejects.csv, index.csv).
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy python3-scipy unzip
+      - name: Archive
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p logs
+          (while sleep 120; do bash scripts/push_logs.sh logs "läuft ${{ github.run_id }}" tas-archive-logs >/dev/null 2>&1; done) &
+          exec > >(tee logs/archive.log) 2>&1
+          set -x
+          df -h .
+          time curl -fsSL -o chm.zip "https://listdata.thelist.tas.gov.au/opendata/data/LIST_TREE_CANOPY_HEIGHT_STATEWIDE.zip"
+          ls -l chm.zip
+          unzip -l chm.zip > logs/zip-list.txt; head -30 logs/zip-list.txt; tail -3 logs/zip-list.txt
+          mkdir -p chm && time unzip -q chm.zip -d chm && rm chm.zip
+          df -h .
+          files=$(find chm -type f \( -iname '*.tif' -o -iname '*.tiff' -o -iname '*.img' -o -iname '*.asc' -o -iname '*.ecw' -o -iname '*.jp2' -o -iname 'hdr.adf' -o -iname '*.flt' \))
+          gdbs=$(find chm -type d -iname '*.gdb' | head -1)
+          echo "$files" | head; echo "$files" | wc -l
+          if [ -n "$files" ]; then
+            gdalbuildvrt src.vrt $files
+          else
+            gdalinfo "$gdbs" | head -40
+            ras=$(gdalinfo "$gdbs" 2>/dev/null | grep -oE 'SUBDATASET_1_NAME=.*' | cut -d= -f2-)
+            gdal_translate -of VRT "${ras:-$gdbs}" src.vrt
+          fi
+          gdalinfo src.vrt | grep -vE '^\s+[0-9.-]+,' | head -50
+          set +x
+          time python3 scripts/chm_archive.py src.vrt arch --tile-km 20 --min-tree 50
+          ls arch/tiles | wc -l; du -sh arch/tiles
+          cp arch/index.csv arch/trees.csv logs/; head -c 2000000 arch/rejects.csv > logs/rejects-head.csv
+          cut -d, -f8 arch/rejects.csv | sort | uniq -c | tee -a logs/archive.log
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view tas-chm -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create tas-chm -R "$GITHUB_REPOSITORY" \
+            --latest=false -t "Tasmanien: Kronenhöhe 2 m (Archiv)" \
+            -n "theLIST Tree Canopy Height (LiDAR, 2 m), © State of Tasmania, CC BY 3.0 AU. Byte-GeoTIFF-Kacheln 20 x 20 km, Wert = Höhe * 2 (0,5-m-Schritte), 255 = keine Daten. Übersicht: index.csv"
+          gh release upload tas-chm arch/index.csv -R "$GITHUB_REPOSITORY" --clobber
+          ls arch/tiles/*.tif | xargs -n 25 gh release upload tas-chm -R "$GITHUB_REPOSITORY" --clobber
+          gh release view tas-data -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create tas-data -R "$GITHUB_REPOSITORY" \
+            --latest=false -t "Tasmanien: Daten" -n "Abgeleitet aus theLIST Tree Canopy Height, © State of Tasmania, CC BY 3.0 AU."
+          gzip -k arch/rejects.csv
+          gh release upload tas-data arch/trees.csv arch/rejects.csv.gz arch/index.csv -R "$GITHUB_REPOSITORY" --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "archive ${{ github.run_id }} ${{ job.status }}" tas-archive-logs
