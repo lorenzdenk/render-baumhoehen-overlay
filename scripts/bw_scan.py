@@ -114,12 +114,22 @@ def peaks(h, hmin):
 
 
 def unit(args):
+    try:
+        return unit_(args)
+    except Exception as ex:   # eine fehlerhafte Einheit darf den Lauf nicht abbrechen
+        print(f"    FEHLER Einheit {args[0]}_{args[1]}: {ex!r}", flush=True)
+        return args[0], args[1], None, []
+
+
+def unit_(args):
     e, n, maskpath, hmin, hre, work = args
     data = fetch(f"{BASE}/ndom1/ndom1_32_{e}_{n}_2_bw.zip")
     if data is None:
         return e, n, None, []
     d = os.path.join(work, f"{e}_{n}")
     files = unzip_rasters(data, d + "_n", (".tif",))
+    if not files:
+        return e, n, None, []
     h = mosaic(files, e, n)
     stats = (int(np.isfinite(h).sum()), float(np.nanmax(h)) if np.isfinite(h).any() else 0.0)
     out = []
@@ -138,10 +148,12 @@ def unit(args):
         if dom and dgm:
             fd = unzip_rasters(dom, d + "_dom", (".tif",))
             fg = unzip_rasters(dgm, d + "_dgm", (".xyz", ".tif"))
+        if dom and dgm and fd and fg:
             years = sorted({f.rsplit("_", 1)[-1].split(".")[0] for f in fd + fg if f.rsplit("_", 1)[-1][:2] in ("19", "20")})
-            dsm = mosaic(fd, e, n)
-            dtm = mosaic(fg, e, n)
-            for py, px, top, crown, forest in remeasure:
+            dsm = np.pad(mosaic(fd, e, n), 8, constant_values=np.nan)   # Rand, damit Fenster nie abgeschnitten werden
+            dtm = np.pad(mosaic(fg, e, n), 8, constant_values=np.nan)
+            for py0, px0, top, crown, forest in remeasure:
+                py, px = py0 + 8, px0 + 8
                 w = dsm[py - 5:py + 6, px - 5:px + 6]
                 wz = np.where(D5, np.nan_to_num(w, nan=-1e9), -1e9)
                 k = np.unravel_index(np.argmax(wz), wz.shape)
@@ -153,7 +165,7 @@ def unit(args):
                     # Krone im Laser-DOM: Pixel im Umkreis 3 m, die höchstens 6 m unter der Spitze liegen
                     wl = dsm[qy - 3:qy + 4, qx - 3:qx + 4] - ground
                     lc = int(((np.nan_to_num(wl, nan=-1e9) >= top_l - 6) & disk(3)).sum())
-                    lid[(py, px)] = (round(top_l, 2), qy, qx, round(float(dsm[qy, qx]), 2), "/".join(years), lc)
+                    lid[(py0, px0)] = (round(top_l, 2), qy - 8, qx - 8, round(float(dsm[qy, qx]), 2), "/".join(years), lc)
         for s in ("_dom", "_dgm"):
             for f in os.listdir(d + s) if os.path.isdir(d + s) else []:
                 os.remove(os.path.join(d + s, f))
@@ -176,7 +188,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--shard", type=int, default=0); ap.add_argument("--shards", type=int, default=1)
     ap.add_argument("--mask", required=True); ap.add_argument("--out", required=True)
-    ap.add_argument("--min", type=float, default=40); ap.add_argument("--remeasure", type=float, default=48)
+    ap.add_argument("--min", type=float, default=45); ap.add_argument("--remeasure", type=float, default=48)
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--units", default=None, help="nur diese Einheiten (E_N,E_N,...) zum Testen")
     a = ap.parse_args()

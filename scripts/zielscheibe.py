@@ -63,28 +63,42 @@ def radii_px(z, lat):
     return [max(rm / g, mp) for rm, mp in zip(RINGS_M, RINGS_MINPX)], g
 
 
-class UF:
-    def __init__(self, n):
-        self.p = np.arange(n)
-
-    def find(self, a):
-        while self.p[a] != a:
-            self.p[a] = self.p[self.p[a]]
-            a = self.p[a]
-        return a
-
-    def union(self, a, b):
-        a, b = self.find(a), self.find(b)
-        if a != b:
-            self.p[max(a, b)] = min(a, b)
-
-
 def clusters(xy, dist):
-    """Single-Linkage: Bäume mit Abstand <= dist gehören zu einer Gruppe."""
-    uf = UF(len(xy))
-    for a, b in cKDTree(xy).query_pairs(dist):
-        uf.union(a, b)
-    return np.array([uf.find(i) for i in range(len(xy))])
+    """Gruppen über ein Raster (schnell auch für Millionen Punkte): Punkte, deren Abstand höchstens etwa
+    dist beträgt, landen in derselben Gruppe (Zellen dist/3, um eine Zelle erweitert, 8er-Nachbarschaft)."""
+    from scipy import ndimage as nd
+    cell = dist / 3.0
+    ij = np.floor((xy - xy.min(axis=0)) / cell).astype(np.int64) + 1
+    shape = ij.max(axis=0) + 2
+    occ = np.zeros((shape[1], shape[0]), bool)
+    occ[ij[:, 1], ij[:, 0]] = True
+    occ = nd.binary_dilation(occ, structure=np.ones((3, 3), bool))
+    lab, _ = nd.label(occ, structure=np.ones((3, 3), bool))
+    return lab[ij[:, 1], ij[:, 0]]
+
+
+class Boxes:
+    """Belegte Beschriftungsflächen mit Rasterindex (schnelle Kollisionsprüfung)."""
+
+    def __init__(self, cell=64):
+        self.cell, self.g = cell, {}
+
+    def _cells(self, b):
+        c = self.cell
+        for i in range(int(b[0] // c), int(b[2] // c) + 1):
+            for j in range(int(b[1] // c), int(b[3] // c) + 1):
+                yield i, j
+
+    def free(self, b):
+        for k in self._cells(b):
+            for c in self.g.get(k, ()):
+                if b[0] < c[2] and b[2] > c[0] and b[1] < c[3] and b[3] > c[1]:
+                    return False
+        return True
+
+    def add(self, b):
+        for k in self._cells(b):
+            self.g.setdefault(k, []).append(b)
 
 
 # ---------------------------------------------------------------- Beschriftungen (global je Zoomstufe)
@@ -94,21 +108,15 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
     gx, gy = (X + R) / r, (R - Y) / r
     rad, g = radii_px(z, lat0)
     lab = clusters(np.c_[gx, gy], 2 * rad[1])   # Gruppen = zusammenhängende 250-m-Zonen
-    out, boxes = [], []
-    groups = {}
-    for i, k in enumerate(lab):
-        groups.setdefault(k, []).append(i)
-    order = sorted(groups.values(), key=lambda m: -max(H[m]))
+    out, boxes = [], Boxes()
+    srt = np.argsort(lab, kind="stable")
+    cuts = np.nonzero(np.diff(lab[srt]))[0] + 1
+    groups = np.split(srt, cuts)
+    order = sorted(groups, key=lambda m: -H[m].max())
     dummy = ImageDraw.Draw(Image.new("L", (1, 1)))
-
-    def free(b):
-        for c in boxes:
-            if b[0] < c[2] and b[2] > c[0] and b[1] < c[3] and b[3] > c[1]:
-                return False
-        return True
+    free = boxes.free
 
     for m in order:
-        m = np.array(m)
         top = m[np.argmax(H[m])]
         txt = f"{H[top]:.0f} m"
         bb = dummy.textbbox((0, 0), txt, font=font, stroke_width=3)
@@ -119,7 +127,7 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
         for (px, py) in ((x1, y0 - h), (x1, y1), (x0 - w, y0 - h), (x0 - w, y1)):
             b = (px - 2, py - 2, px + w + 2, py + h + 2)
             if free(b):
-                boxes.append(b); out.append((px, py, txt, "group"))
+                boxes.add(b); out.append((px, py, txt, "group"))
                 break
     if z >= 14:
         idx = np.argsort(-H)
@@ -131,7 +139,7 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
             px, py = gx[i] + 6, gy[i] - 6
             b = (px - 1, py - 1, px + bb[2] + 1, py + bb[3] + 1)
             if free(b):
-                boxes.append(b); out.append((px, py, txt, "tree"))
+                boxes.add(b); out.append((px, py, txt, "tree"))
     return out
 
 
@@ -178,7 +186,14 @@ def render(args):
             rgba[np.abs(dist - rr_) <= w / 2] = (*RING, a)
     img = Image.fromarray(rgba, "RGBA")
     d = ImageDraw.Draw(img)
-    for i in np.argsort(H):
+    # Punkte ausdünnen: je Rasterzelle nur der höchste Baum (ab z14 alle)
+    cell = {8: 10, 9: 10, 10: 10, 11: 10, 12: 7, 13: 5}.get(z, 0)
+    order = np.argsort(-H)
+    if cell and len(order):
+        key = (np.floor(px[order] / cell).astype(np.int64) * 100003 + np.floor(py[order] / cell).astype(np.int64))
+        _, first = np.unique(key, return_index=True)
+        order = order[first]
+    for i in order[np.argsort(H[order])]:
         a, b = px[i], py[i]
         if -10 <= a < S + 10 and -10 <= b < S + 10:
             d.ellipse([a - cr, b - cr, a + cr, b + cr], fill=hcol(H[i]) + (255,), outline=(40, 20, 20, 255), width=1)
@@ -251,14 +266,13 @@ def main():
             r = res(z)
             rad, _ = radii_px(z, lat0)
             reach = (rad[2] + 40) * r
-            tiles = set()
             step = TILE * r
-            for x_, y_ in zip(X, Y):
-                tx0, tx1 = int((x_ - reach + R) // step), int((x_ + reach + R) // step)
-                ty0, ty1 = int((R - y_ - reach) // step), int((R - y_ + reach) // step)
-                for tx in range(tx0, tx1 + 1):
-                    for ty in range(ty0, ty1 + 1):
-                        tiles.add((tx, ty))
+            tiles = set()
+            for dx in (-reach, 0, reach):
+                for dy in (-reach, 0, reach):
+                    tx = ((X + dx + R) // step).astype(np.int64)
+                    ty = ((R - Y - dy) // step).astype(np.int64)
+                    tiles.update(zip(*np.unique(np.c_[tx, ty], axis=0).T.tolist()))
             # Kacheln, in die eine Beschriftung hineinragt
             for lx, ly, txt, kind in labels[z]:
                 for gx in (lx - 4, lx + 12 * len(txt)):
