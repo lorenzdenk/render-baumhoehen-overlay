@@ -1,0 +1,81 @@
+name: BW tallest trees
+# Sucht die höchsten Bäume in BW: nDOM1-Kandidaten, Nachmessung DOM1-DGM1 (LGL, dl-de/by-2-0), Filter mit OSM.
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Anzahl paralleler Rechner"
+        default: "12"
+      units:
+        description: "nur diese 2-km-Einheiten (E_N,...) zum Testen, leer = ganz BW"
+        default: ""
+permissions:
+  contents: write
+jobs:
+  mask:
+    runs-on: ubuntu-24.04
+    outputs:
+      shards: ${{ steps.s.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: s
+        run: echo "shards=$(python3 -c "print(list(range(${{ github.event.inputs.shards }})))")" >> "$GITHUB_OUTPUT"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin osmium-tool
+      - run: |
+          curl -fsSL -o bw.osm.pbf https://download.geofabrik.de/europe/germany/baden-wuerttemberg-latest.osm.pbf
+          bash scripts/prepare_scanmask.sh bw.osm.pbf scanmask.gpkg
+      - uses: actions/upload-artifact@v4
+        with: {name: scanmask, path: scanmask.gpkg, retention-days: 3}
+  scan:
+    needs: mask
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.mask.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy python3-scipy
+      - uses: actions/download-artifact@v4
+        with: {name: scanmask}
+      - name: Scan
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          python3 scripts/bw_scan.py --shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards }} \
+            --mask scanmask.gpkg ${{ github.event.inputs.units && format('--units {0}', github.event.inputs.units) || '' }} --out cand_${{ matrix.shard }}.csv 2>&1 | tee logs/scan${{ matrix.shard }}.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: "cand${{ matrix.shard }}", path: "cand_${{ matrix.shard }}.csv", retention-days: 5}
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "scan ${{ matrix.shard }} ${{ job.status }}" bw-scan-logs-${{ matrix.shard }}
+  top:
+    needs: scan
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {pattern: "cand*", merge-multiple: true, path: cand}
+      - name: Rank
+        run: |
+          mkdir -p logs
+          cat cand/*.csv | head -1 > logs/bw_kandidaten.csv; for f in cand/*.csv; do tail -n +2 "$f"; done >> logs/bw_kandidaten.csv
+          python3 scripts/bw_top.py logs cand/*.csv 2>&1 | tee logs/top.log
+          gzip -k logs/bw_kandidaten.csv
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view bw-data -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create bw-data -R "$GITHUB_REPOSITORY" \
+            --latest=false -t "BW: höchste Bäume" -n "Abgeleitet aus nDOM1, DOM1, DGM1: Datenquelle LGL, www.lgl-bw.de, dl-de/by-2-0, Daten geändert. Maske © OpenStreetMap-Mitwirkende."
+          gh release upload bw-data logs/bw_top50.csv logs/bw_top10.md logs/bw_kandidaten.csv.gz -R "$GITHUB_REPOSITORY" --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: rm -f logs/bw_kandidaten.csv; bash scripts/push_logs.sh logs "top ${{ github.run_id }} ${{ job.status }}" bw-scan-logs

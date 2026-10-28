@@ -6,7 +6,7 @@ Darstellung:
   - jeder Baum als Punkt, Farbe = Höhe (50 m gelb -> 100 m dunkelviolett), dunkler Rand
   - Ringe in 100 / 250 / 500 m Abstand zum nächsten hohen Baum (folgen der Form der Gruppe);
     weit herausgezoomt mindestens 7 / 13 / 19 px, damit sie sichtbar bleiben; Kernzone leicht getönt
-  - Beschriftung je Gruppe: höchster Baum, ab z12 mit Anzahl; ab z14 zusätzlich Bäume ab 60 m
+  - Beschriftung je Gruppe: Höhe des höchsten Baums; ab z14 zusätzlich einzelne Bäume ab 60 m
   - Beschriftungen werden pro Zoomstufe global (für das ganze Gebiet) platziert, ohne Überlappung und
     über Kachelgrenzen hinweg (jede Kachel wird mit Rand gezeichnet und dann zugeschnitten)
 
@@ -110,7 +110,7 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
     for m in order:
         m = np.array(m)
         top = m[np.argmax(H[m])]
-        txt = f"{H[top]:.0f} m" + (f"  ({len(m)})" if len(m) > 1 and z >= 12 else "")
+        txt = f"{H[top]:.0f} m"
         bb = dummy.textbbox((0, 0), txt, font=font, stroke_width=3)
         w, h = bb[2] - bb[0], bb[3] - bb[1]
         # Kandidaten: oben rechts, unten rechts, oben links, unten links ausserhalb des 250-m-Rings
