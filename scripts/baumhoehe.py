@@ -515,6 +515,26 @@ def cmd_merge(a):
     print(f"{a.out}: {n_map} Kacheln, {n_img} verschiedene, z{zmin}-{zmax}, {os.path.getsize(a.out) / 1e6:.1f} MB")
 
 
+def cmd_pack(a):
+    """Teildateien der Reihe nach zu möglichst wenigen Dateien unter --limit Bytes zusammenfassen."""
+    import re
+    parts = sorted(a.parts, key=lambda p: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", os.path.basename(p))])
+    parts = [p for p in parts if "overview" in p] + [p for p in parts if "overview" not in p]
+    groups, cur, size = [], [], 0
+    for p in parts:
+        sz = os.path.getsize(p)
+        if cur and size + sz > a.limit:
+            groups.append(cur); cur, size = [], 0
+        cur.append(p); size += sz
+    if cur:
+        groups.append(cur)
+    n = len(groups)
+    for k, g in enumerate(groups, 1):
+        out = f"{a.prefix}.mbtiles" if n == 1 else f"{a.prefix}-part{k}of{n}.mbtiles"
+        a2 = argparse.Namespace(out=out, parts=g)
+        cmd_merge(a2)
+
+
 def cmd_legend(a):
     w, h = 520, 90
     top = P["legend_max"]
@@ -570,6 +590,8 @@ def main():
     p = sub.add_parser("overview"); common(p)
     p = sub.add_parser("legend"); p.add_argument("out"); p.add_argument("--palette", default="standard")
     p = sub.add_parser("merge"); p.add_argument("out"); p.add_argument("parts", nargs="+")
+    p = sub.add_parser("pack"); p.add_argument("prefix"); p.add_argument("parts", nargs="+")
+    p.add_argument("--limit", type=int, default=1_900_000_000)
     a = ap.parse_args()
     if getattr(a, "palette", None):
         set_palette(a.palette)
@@ -585,6 +607,8 @@ def main():
         cmd_legend(a)
     elif a.cmd == "merge":
         cmd_merge(a)
+    elif a.cmd == "pack":
+        cmd_pack(a)
 
 
 if __name__ == "__main__":

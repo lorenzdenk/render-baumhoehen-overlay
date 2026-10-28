@@ -1,0 +1,26 @@
+name: Repack release
+# Fasst die MBTiles-Teile eines Releases zu möglichst wenigen Dateien unter 1,9 GB zusammen.
+on:
+  workflow_dispatch:
+    inputs:
+      tag: {description: "Release-Tag", required: true}
+      name: {description: "Dateiname ohne Endung (z.B. tasmanien-baumhoehe)", required: true}
+permissions:
+  contents: write
+jobs:
+  repack:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-pil
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          T="${{ github.event.inputs.tag }}"; N="${{ github.event.inputs.name }}"
+          mkdir -p in out
+          gh release download "$T" -p "$N-part*.mbtiles" -D in -R "$GITHUB_REPOSITORY"
+          ls -l in
+          python3 scripts/baumhoehe.py pack out/$N in/*.mbtiles
+          ls -l out
+          for f in in/*.mbtiles; do gh release delete-asset "$T" "$(basename $f)" -R "$GITHUB_REPOSITORY" -y; done
+          gh release upload "$T" out/*.mbtiles -R "$GITHUB_REPOSITORY" --clobber

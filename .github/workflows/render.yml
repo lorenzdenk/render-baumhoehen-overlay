@@ -120,14 +120,8 @@ jobs:
           python3 scripts/baumhoehe.py overview --bbox "$BBOX" --zsplit $ZSPLIT --minzoom $MINZOOM --maxzoom $MAXZOOM \
             --title "$TITLE" --palette "${PALETTE:-standard}" ${DESCRIPTION:+--description "$DESCRIPTION"} \
             ${ATTRIBUTION:+--attribution "$ATTRIBUTION"} --out parts/overview.mbtiles --lowres parts/lowres 2>&1 | tee -a logs/finish.log
-          python3 scripts/baumhoehe.py merge out/$NAME.mbtiles parts/overview.mbtiles parts/part*.mbtiles 2>&1 | tee -a logs/finish.log
-          size=$(stat -c %s out/$NAME.mbtiles)
-          if [ "$size" -gt 1900000000 ]; then
-            # zu gross für eine Release-Datei: Teile einzeln (die App zeigt alle Teile zusammen als eine Karte)
-            rm out/$NAME.mbtiles
-            n=$(ls parts/part*.mbtiles | wc -l); n=$((n + 1)); k=1
-            for f in parts/overview.mbtiles parts/part*.mbtiles; do cp "$f" "out/$NAME-part${k}of${n}.mbtiles"; k=$((k + 1)); done
-          fi
+          # möglichst wenige Dateien unter 1,9 GB (Release-Grenze 2 GB); die App zeigt alle Teile zusammen als eine Karte
+          python3 scripts/baumhoehe.py pack out/$NAME parts/overview.mbtiles parts/part*.mbtiles 2>&1 | tee -a logs/finish.log
           python3 scripts/baumhoehe.py legend --palette "${PALETTE:-standard}" out/$NAME-legende.png
           ls -l out | tee -a logs/finish.log
       - name: Preview
