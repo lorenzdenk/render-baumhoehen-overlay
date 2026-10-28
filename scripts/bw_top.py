@@ -21,7 +21,7 @@ for r in ok:
         top.append(r)
     if len(top) >= 50:
         break
-keys = ["rang", "lat", "lon", "lidar_m", "ndom_m", "jahre", "crown_px", "forest_frac", "x", "y"]
+keys = ["rang", "lat", "lon", "lidar_m", "ndom_m", "jahre", "crown_px", "lidar_crown_px", "forest_frac", "dom_nhn_m", "x", "y"]
 with open(f"{out}/bw_top50.csv", "w", newline="") as f:
     w = csv.writer(f); w.writerow(keys)
     for i, r in enumerate(top, 1):

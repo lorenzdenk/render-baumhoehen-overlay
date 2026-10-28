@@ -148,8 +148,12 @@ def unit(args):
                 qy, qx = py - 5 + k[0], px - 5 + k[1]
                 g = dtm[qy - 2:qy + 3, qx - 2:qx + 3]
                 if np.isfinite(dsm[qy, qx]) and np.isfinite(g).any():
-                    lid[(py, px)] = (round(float(dsm[qy, qx] - np.nanmin(g)), 2), qy, qx,
-                                     round(float(dsm[qy, qx]), 2), "/".join(years))
+                    ground = float(np.nanmin(g))
+                    top_l = float(dsm[qy, qx]) - ground
+                    # Krone im Laser-DOM: Pixel im Umkreis 3 m, die höchstens 6 m unter der Spitze liegen
+                    wl = dsm[qy - 3:qy + 4, qx - 3:qx + 4] - ground
+                    lc = int(((np.nan_to_num(wl, nan=-1e9) >= top_l - 6) & disk(3)).sum())
+                    lid[(py, px)] = (round(top_l, 2), qy, qx, round(float(dsm[qy, qx]), 2), "/".join(years), lc)
         for s in ("_dom", "_dgm"):
             for f in os.listdir(d + s) if os.path.isdir(d + s) else []:
                 os.remove(os.path.join(d + s, f))
@@ -161,8 +165,10 @@ def unit(args):
         X, Y = e * 1000 + px + 0.5, n * 1000 + 2000 - py - 0.5
         if L:
             X, Y = e * 1000 + L[2] + 0.5, n * 1000 + 2000 - L[1] - 0.5
-        out.append((X, Y, round(top, 2), crown, round(forest, 2), L[0] if L else "", L[3] if L else "",
-                    L[4] if L else "", reason))
+        if L and not reason and (L[5] < 3 or L[0] - top > 15):
+            reason = "laser-spike"   # einzelner Ausreisser im Laser-DOM (Vogel, Leitung, Kran)
+        out.append((X, Y, round(top, 2), crown, round(forest, 2), L[0] if L else "", L[5] if L else "",
+                    L[3] if L else "", L[4] if L else "", reason))
     return e, n, stats, out
 
 
@@ -188,7 +194,7 @@ def main():
     tr = osr.CoordinateTransformation(s, t)
     with open(a.out, "w", newline="") as f, ThreadPoolExecutor(a.threads) as ex:
         w = csv.writer(f)
-        w.writerow(["lon", "lat", "ndom_m", "crown_px", "forest_frac", "lidar_m", "dom_nhn_m", "jahre", "verworfen",
+        w.writerow(["lon", "lat", "ndom_m", "crown_px", "forest_frac", "lidar_m", "lidar_crown_px", "dom_nhn_m", "jahre", "verworfen",
                     "x", "y"])
         for k, (e, n, stats, rows) in enumerate(ex.map(unit, [(e, n, a.mask, a.min, a.remeasure, work) for e, n in mine]), 1):
             if stats:
