@@ -1,29 +1,20 @@
 #!/usr/bin/env bash
-# Erkundet das Open-GeoData-Portal des LGL (URL-Schema für DGM/DOM-Downloads).
-set -x
+# Erkundung: Produktkonfiguration des LGL-Portals und TheList-Dienste (Tasmanien).
 mkdir -p p && cd p
-curl -sSL https://opengeodata.lgl-bw.de/ -o index.html
-head -c 3000 index.html; echo
-for js in $(grep -oE '(src|href)="[^"]+"' index.html | sed -E 's/.*="([^"]+)"/\1/' | grep -E '\.(js|json)$'); do
-  u="$js"; case "$u" in http*) ;; *) u="https://opengeodata.lgl-bw.de/${u#/}";; esac
-  curl -sSL "$u" -o "$(basename "$u")" || true
+B=https://opengeodata.lgl-bw.de
+for f in assets/config/local/odp-products.json assets/environment/config.json; do
+  curl -sSL "$B/$f" -o "$(basename $f)"; echo "=== $f ($(wc -c < $(basename $f)) bytes)"
 done
-ls -la
-set +x
-echo "=== strings with dgm/dom"
-grep -ohE '"[^"]{0,150}(dgm|dom|DGM|DOM)[^"]{0,150}"' *.js 2>/dev/null | sort -u | head -150
-echo "=== urls"
-grep -ohE 'https?://[a-zA-Z0-9_./{}$-]+' *.js | sort -u | head -100
-echo "=== /data/ refs"
-grep -ohE '.{150}/data/.{150}' *.js | head -20
-echo "=== json refs"
-grep -ohE '"[a-zA-Z0-9_/.-]*\.(json|geojson)"' *.js | sort -u | head -50
-echo "=== candidates"
-for u in https://opengeodata.lgl-bw.de/data/ https://opengeodata.lgl-bw.de/data/dgm/ https://opengeodata.lgl-bw.de/data/dom1/ https://opengeodata.lgl-bw.de/data/dom/; do
-  echo "== $u"; curl -sSI "$u" | head -3; curl -sSL "$u" | head -c 1500; echo
+cp odp-products.json ../logs/ 2>/dev/null; cp config.json ../logs/ 2>/dev/null
+curl -sSL $B/main-326ADFDD.js -o main.js; curl -sSL $B/chunk-V4BVW554.js -o c1.js; curl -sSL $B/chunk-7C3R5VC3.js -o c2.js; curl -sSL $B/chunk-PKDEYTYO.js -o c3.js
+echo "=== js: zip/download/data context"
+grep -ohE '.{200}(\.zip|/data/|downloadUrl|download_url|fileName).{200}' main.js c1.js c2.js c3.js | head -30
+echo "=== TheList canopy"
+for s in Public/NaturalEnvironment Public/NaturalEnvironmentV2 Public/TopographyAndRelief Public/NVAdata Public/OpenDataWFS; do
+  echo "== $s"; curl -sSL "https://services.thelist.tas.gov.au/arcgis/rest/services/$s/MapServer/layers?f=json" \
+    | python3 -c "import sys,json
+d=json.load(sys.stdin)
+for l in d.get('layers',[]): print(l['id'], l['type'], l['name'], (l.get('description') or '')[:200].replace('\n',' '))" 2>&1 | head -120
 done
-echo "=== qgis plugin"
-cd ..; curl -sSL -o plugin.zip "https://plugins.qgis.org/plugins/BW_OpenGeodataDownloader/version/latest/download/" || true
-file plugin.zip; unzip -o -q plugin.zip -d plugin || true
-grep -rhoE 'https?://[^"'"'"' )]+' plugin | sort -u | head -80
-grep -rnE 'dgm|dom|DGM|DOM|zip' plugin --include=*.py | cut -c1-250 | head -120
+echo "== services root folders"
+for f in Basemaps Raster Public; do curl -sSL "https://services.thelist.tas.gov.au/arcgis/rest/services/$f?f=json" | python3 -c "import sys,json; print([s['name']+':'+s['type'] for s in json.load(sys.stdin)['services']])"; done
