@@ -1,0 +1,185 @@
+Shard 15/20: 43 von 864 Blockkacheln (z11)
+  Block 11/1862/1277: 0 Archivkacheln, 0 s
+  [1/43] 0.0 min
+  Block 11/1862/1278: 2 Archivkacheln, 1 s
+    Raster 4096 px: Daten 0 %, Krone 0 %, mittlere Kronenhöhe 0.0 m, >= 50 m: 0 px, höchster Wert 0.0 m, 1 s
+  [2/43] 0.0 min
+  Block 11/1862/1279: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 0 %, Krone 0 %, mittlere Kronenhöhe 0.0 m, >= 50 m: 0 px, höchster Wert 0.0 m, 1 s
+  [3/43] 0.0 min
+  Block 11/1862/1280: 4 Archivkacheln, 1 s
+    Raster 4096 px: Daten 60 %, Krone 29 %, mittlere Kronenhöhe 12.7 m, >= 50 m: 33 px, höchster Wert 55.1 m, 4 s
+    66/85 Kacheln, 4 MB bisher, 6 s
+  [4/43] 0.1 min
+  Block 11/1862/1281: 4 Archivkacheln, 2 s
+    Raster 4096 px: Daten 100 %, Krone 41 %, mittlere Kronenhöhe 13.9 m, >= 50 m: 1481 px, höchster Wert 124.5 m, 6 s
+    85/85 Kacheln, 12 MB bisher, 9 s
+  [5/43] 0.3 min
+  Block 11/1862/1282: 4 Archivkacheln, 1 s
+    Raster 4096 px: Daten 100 %, Krone 51 %, mittlere Kronenhöhe 12.4 m, >= 50 m: 1223 px, höchster Wert 123.6 m, 6 s
+    85/85 Kacheln, 22 MB bisher, 9 s
+  [6/43] 0.5 min
+  Block 11/1862/1283: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 100 %, Krone 52 %, mittlere Kronenhöhe 12.0 m, >= 50 m: 611 px, höchster Wert 124.6 m, 4 s
+    85/85 Kacheln, 33 MB bisher, 8 s
+  [7/43] 0.6 min
+  Block 11/1862/1284: 4 Archivkacheln, 1 s
+    Raster 4096 px: Daten 66 %, Krone 27 %, mittlere Kronenhöhe 10.8 m, >= 50 m: 2 px, höchster Wert 55.3 m, 4 s
+    77/85 Kacheln, 37 MB bisher, 6 s
+  [8/43] 0.7 min
+  Block 11/1862/1285: 4 Archivkacheln, 1 s
+    Raster 4096 px: Daten 63 %, Krone 7 %, mittlere Kronenhöhe 11.6 m, >= 50 m: 0 px, höchster Wert 47.1 m, 4 s
+    65/85 Kacheln, 38 MB bisher, 5 s
+  [9/43] 0.8 min
+  Block 11/1862/1286: 1 Archivkacheln, 0 s
+    Raster 4096 px: Daten 100 %, Krone 10 %, mittlere Kronenhöhe 11.3 m, >= 50 m: 1 px, höchster Wert 52.2 m, 4 s
+    85/85 Kacheln, 41 MB bisher, 5 s
+  [10/43] 0.9 min
+  Block 11/1862/1287: 2 Archivkacheln, 1 s
+    Raster 4096 px: Daten 100 %, Krone 24 %, mittlere Kronenhöhe 12.8 m, >= 50 m: 0 px, höchster Wert 39.3 m, 4 s
+    85/85 Kacheln, 46 MB bisher, 7 s
+  [11/43] 1.0 min
+  Block 11/1862/1288: 2 Archivkacheln, 1 s
+    Raster 4096 px: Daten 100 %, Krone 10 %, mittlere Kronenhöhe 11.1 m, >= 50 m: 0 px, höchster Wert 38.2 m, 5 s
+    85/85 Kacheln, 49 MB bisher, 7 s
+  [12/43] 1.1 min
+  Block 11/1862/1289: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 100 %, Krone 19 %, mittlere Kronenhöhe 12.7 m, >= 50 m: 10 px, höchster Wert 59.6 m, 4 s
+    85/85 Kacheln, 53 MB bisher, 6 s
+  [13/43] 1.2 min
+  Block 11/1862/1290: 1 Archivkacheln, 0 s
+    Raster 4096 px: Daten 100 %, Krone 13 %, mittlere Kronenhöhe 13.4 m, >= 50 m: 1 px, höchster Wert 54.4 m, 4 s
+    85/85 Kacheln, 57 MB bisher, 5 s
+  [14/43] 1.3 min
+  Block 11/1862/1291: 2 Archivkacheln, 1 s
+    Raster 4096 px: Daten 100 %, Krone 39 %, mittlere Kronenhöhe 14.3 m, >= 50 m: 149 px, höchster Wert 84.2 m, 4 s
+    85/85 Kacheln, 65 MB bisher, 7 s
+  [15/43] 1.4 min
+  Block 11/1862/1292: 2 Archivkacheln, 1 s
+    Raster 4096 px: Daten 100 %, Krone 40 %, mittlere Kronenhöhe 13.9 m, >= 50 m: 263 px, höchster Wert 84.5 m, 4 s
+    85/85 Kacheln, 73 MB bisher, 7 s
+  [16/43] 1.5 min
+  Block 11/1862/1293: 2 Archivkacheln, 1 s
+    Raster 4096 px: Daten 96 %, Krone 26 %, mittlere Kronenhöhe 12.2 m, >= 50 m: 108 px, höchster Wert 57.1 m, 5 s
+    85/85 Kacheln, 79 MB bisher, 7 s
+  [17/43] 1.6 min
+  Block 11/1862/1294: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 73 %, Krone 33 %, mittlere Kronenhöhe 11.0 m, >= 50 m: 15 px, höchster Wert 55.4 m, 4 s
+    81/85 Kacheln, 84 MB bisher, 6 s
+  [18/43] 1.8 min
+  Block 11/1862/1295: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 30 %, Krone 43 %, mittlere Kronenhöhe 12.3 m, >= 50 m: 11 px, höchster Wert 61.3 m, 2 s
+    62/85 Kacheln, 86 MB bisher, 4 s
+  [19/43] 1.8 min
+  Block 11/1862/1296: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 33 %, Krone 42 %, mittlere Kronenhöhe 15.2 m, >= 50 m: 9 px, höchster Wert 53.9 m, 2 s
+    51/85 Kacheln, 90 MB bisher, 4 s
+  [20/43] 1.9 min
+  Block 11/1862/1297: 1 Archivkacheln, 0 s
+    Raster 4096 px: Daten 18 %, Krone 53 %, mittlere Kronenhöhe 12.6 m, >= 50 m: 29 px, höchster Wert 66.2 m, 2 s
+    35/85 Kacheln, 91 MB bisher, 3 s
+  [21/43] 1.9 min
+  Block 11/1862/1298: 2 Archivkacheln, 1 s
+    Raster 4096 px: Daten 24 %, Krone 85 %, mittlere Kronenhöhe 21.3 m, >= 50 m: 12395 px, höchster Wert 77.9 m, 2 s
+    34/85 Kacheln, 95 MB bisher, 4 s
+  [22/43] 2.0 min
+  Block 11/1862/1299: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 4 %, Krone 85 %, mittlere Kronenhöhe 15.7 m, >= 50 m: 17 px, höchster Wert 53.8 m, 1 s
+    8/85 Kacheln, 95 MB bisher, 2 s
+  [23/43] 2.0 min
+  Block 11/1862/1300: 1 Archivkacheln, 0 s
+    Raster 4096 px: Daten 0 %, Krone 0 %, mittlere Kronenhöhe 0.0 m, >= 50 m: 0 px, höchster Wert 0.0 m, 1 s
+  [24/43] 2.0 min
+  Block 11/1863/1269: 0 Archivkacheln, 0 s
+  [25/43] 2.0 min
+  Block 11/1863/1270: 0 Archivkacheln, 0 s
+  [26/43] 2.0 min
+  Block 11/1863/1271: 0 Archivkacheln, 0 s
+  [27/43] 2.0 min
+  Block 11/1863/1272: 0 Archivkacheln, 0 s
+  [28/43] 2.0 min
+  Block 11/1863/1273: 0 Archivkacheln, 0 s
+  [29/43] 2.0 min
+  Block 11/1863/1274: 0 Archivkacheln, 0 s
+  [30/43] 2.0 min
+  Block 11/1863/1275: 0 Archivkacheln, 0 s
+  [31/43] 2.0 min
+  Block 11/1863/1276: 0 Archivkacheln, 0 s
+  [32/43] 2.0 min
+  Block 11/1863/1277: 0 Archivkacheln, 0 s
+  [33/43] 2.0 min
+  Block 11/1863/1278: 1 Archivkacheln, 0 s
+    Raster 4096 px: Daten 0 %, Krone 0 %, mittlere Kronenhöhe 0.0 m, >= 50 m: 0 px, höchster Wert 0.0 m, 1 s
+  [34/43] 2.1 min
+  Block 11/1863/1279: 1 Archivkacheln, 0 s
+    Raster 4096 px: Daten 6 %, Krone 4 %, mittlere Kronenhöhe 7.2 m, >= 50 m: 0 px, höchster Wert 22.6 m, 1 s
+    15/85 Kacheln, 96 MB bisher, 2 s
+  [35/43] 2.1 min
+  Block 11/1863/1280: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 79 %, Krone 35 %, mittlere Kronenhöhe 13.7 m, >= 50 m: 511 px, höchster Wert 64.1 m, 4 s
+    74/85 Kacheln, 102 MB bisher, 6 s
+  [36/43] 2.2 min
+  Block 11/1863/1281: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 100 %, Krone 44 %, mittlere Kronenhöhe 16.0 m, >= 50 m: 4894 px, höchster Wert 71.7 m, 4 s
+    85/85 Kacheln, 112 MB bisher, 7 s
+  [37/43] 2.3 min
+  Block 11/1863/1282: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 100 %, Krone 78 %, mittlere Kronenhöhe 14.3 m, >= 50 m: 1474 px, höchster Wert 68.5 m, 4 s
+    85/85 Kacheln, 126 MB bisher, 8 s
+  [38/43] 2.4 min
+  Block 11/1863/1283: 1 Archivkacheln, 0 s
+    Raster 4096 px: Daten 100 %, Krone 57 %, mittlere Kronenhöhe 12.9 m, >= 50 m: 430 px, höchster Wert 122.2 m, 4 s
+    85/85 Kacheln, 138 MB bisher, 8 s
+  [39/43] 2.6 min
+  Block 11/1863/1284: 4 Archivkacheln, 0 s
+    Raster 4096 px: Daten 92 %, Krone 46 %, mittlere Kronenhöhe 11.7 m, >= 50 m: 3 px, höchster Wert 54.8 m, 4 s
+    82/85 Kacheln, 147 MB bisher, 7 s
+  [40/43] 2.7 min
+  Block 11/1863/1285: 4 Archivkacheln, 0 s
+    Raster 4096 px: Daten 17 %, Krone 34 %, mittlere Kronenhöhe 12.0 m, >= 50 m: 0 px, höchster Wert 46.6 m, 2 s
+    32/85 Kacheln, 148 MB bisher, 3 s
+  [41/43] 2.7 min
+  Block 11/1863/1286: 2 Archivkacheln, 0 s
+    Raster 4096 px: Daten 96 %, Krone 31 %, mittlere Kronenhöhe 12.2 m, >= 50 m: 1 px, höchster Wert 50.8 m, 4 s
+    85/85 Kacheln, 155 MB bisher, 7 s
+  [42/43] 2.8 min
+  Block 11/1863/1287: 4 Archivkacheln, 1 s
+    Raster 4096 px: Daten 100 %, Krone 30 %, mittlere Kronenhöhe 13.1 m, >= 50 m: 6 px, höchster Wert 52.5 m, 5 s
+    85/85 Kacheln, 161 MB bisher, 7 s
+  [43/43] 3.0 min
+fertig: 2042 Kacheln, 161.2 MB
+-rw-r--r-- 1 runner runner 163237888 Oct 28 22:43 part15.mbtiles
+
+lowres:
+total 2752
+-rw-r--r-- 1 runner runner  76854 Oct 28 22:40 11_1862_1280.tif
+-rw-r--r-- 1 runner runner 140121 Oct 28 22:40 11_1862_1281.tif
+-rw-r--r-- 1 runner runner 160123 Oct 28 22:41 11_1862_1282.tif
+-rw-r--r-- 1 runner runner 164752 Oct 28 22:41 11_1862_1283.tif
+-rw-r--r-- 1 runner runner  88533 Oct 28 22:41 11_1862_1284.tif
+-rw-r--r-- 1 runner runner  32143 Oct 28 22:41 11_1862_1285.tif
+-rw-r--r-- 1 runner runner  67007 Oct 28 22:41 11_1862_1286.tif
+-rw-r--r-- 1 runner runner 104443 Oct 28 22:41 11_1862_1287.tif
+-rw-r--r-- 1 runner runner  72171 Oct 28 22:41 11_1862_1288.tif
+-rw-r--r-- 1 runner runner  90232 Oct 28 22:41 11_1862_1289.tif
+-rw-r--r-- 1 runner runner  81357 Oct 28 22:41 11_1862_1290.tif
+-rw-r--r-- 1 runner runner 133415 Oct 28 22:41 11_1862_1291.tif
+-rw-r--r-- 1 runner runner 137489 Oct 28 22:42 11_1862_1292.tif
+-rw-r--r-- 1 runner runner 112471 Oct 28 22:42 11_1862_1293.tif
+-rw-r--r-- 1 runner runner 110011 Oct 28 22:42 11_1862_1294.tif
+-rw-r--r-- 1 runner runner  50959 Oct 28 22:42 11_1862_1295.tif
+-rw-r--r-- 1 runner runner  54720 Oct 28 22:42 11_1862_1296.tif
+-rw-r--r-- 1 runner runner  32824 Oct 28 22:42 11_1862_1297.tif
+-rw-r--r-- 1 runner runner  43714 Oct 28 22:42 11_1862_1298.tif
+-rw-r--r-- 1 runner runner   8445 Oct 28 22:42 11_1862_1299.tif
+-rw-r--r-- 1 runner runner   4244 Oct 28 22:42 11_1863_1279.tif
+-rw-r--r-- 1 runner runner 115239 Oct 28 22:42 11_1863_1280.tif
+-rw-r--r-- 1 runner runner 138904 Oct 28 22:42 11_1863_1281.tif
+-rw-r--r-- 1 runner runner 175075 Oct 28 22:43 11_1863_1282.tif
+-rw-r--r-- 1 runner runner 164993 Oct 28 22:43 11_1863_1283.tif
+-rw-r--r-- 1 runner runner 138181 Oct 28 22:43 11_1863_1284.tif
+-rw-r--r-- 1 runner runner  26967 Oct 28 22:43 11_1863_1285.tif
+-rw-r--r-- 1 runner runner 117608 Oct 28 22:43 11_1863_1286.tif
+-rw-r--r-- 1 runner runner 114030 Oct 28 22:43 11_1863_1287.tif
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   60G   85G  42% /
