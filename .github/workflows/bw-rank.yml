@@ -1,0 +1,19 @@
+name: BW tallest trees ranking
+# Rangliste neu berechnen aus den Kandidaten im Release bw-data (ohne neue Suche).
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  rank:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-numpy python3-scipy
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p cand logs
+          gh release download bw-data -p 'cand_*.csv.gz' -D cand -R "$GITHUB_REPOSITORY" --clobber
+          gunzip -f cand/*.gz
+          python3 scripts/bw_top.py logs cand/*.csv | tee logs/top.log
+          gh release upload bw-data logs/bw_top50.csv logs/bw_top10.md -R "$GITHUB_REPOSITORY" --clobber
