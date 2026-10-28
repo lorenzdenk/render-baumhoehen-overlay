@@ -1,0 +1,135 @@
+name: Render Baumhöhen-Overlay
+# nDOM1 (LGL BW) -> Baumhöhe als MBTiles-Overlay (512 px WebP mit Transparenz).
+# Region: render.env (REGION=...) bzw. Eingabe beim manuellen Start; Einstellungen in regions/<region>.env.
+# Ergebnis: Release "baumhoehe-<NAME>", Logs und Vorschaubilder im Branch "render-logs".
+on:
+  push:
+    branches: [main]
+    paths: ['render.env', 'regions/**', 'scripts/baumhoehe.py', 'scripts/prepare_mask.sh', '.github/workflows/render.yml']
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Region (Datei in regions/ ohne .env), leer = render.env"
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: render-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      region: ${{ steps.r.outputs.region }}
+      shards: ${{ steps.r.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: r
+        run: |
+          source render.env
+          region="${{ github.event.inputs.region }}"; region="${region:-$REGION}"
+          source "regions/$region.env"
+          echo "region=$region" >> "$GITHUB_OUTPUT"
+          echo "shards=$(python3 -c "import json; print(json.dumps(list(range($SHARDS))))")" >> "$GITHUB_OUTPUT"
+          echo "Region $region, $SHARDS Shards"
+
+  build:
+    needs: setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.setup.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-pil gdal-bin osmium-tool
+      - name: Settings
+        run: cat "regions/${{ needs.setup.outputs.region }}.env" | grep -v '^#' | grep . | sed 's/"//g' >> "$GITHUB_ENV"
+      - name: OSM cache key
+        id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: mask.gpkg
+          key: mask-${{ needs.setup.outputs.region }}-${{ hashFiles('scripts/prepare_mask.sh') }}-${{ steps.week.outputs.week }}
+      - name: OSM mask
+        run: |
+          mkdir -p logs
+          if [ ! -f mask.gpkg ]; then
+            curl -fsSL -o in.osm.pbf "$OSM_PBF"
+            bash scripts/prepare_mask.sh in.osm.pbf mask.gpkg 2>&1 | tee logs/mask.log
+            rm in.osm.pbf
+          fi
+      - name: Build
+        run: |
+          set -o pipefail
+          python3 scripts/baumhoehe.py build --bbox "$BBOX" --zsplit $ZSPLIT --minzoom $MINZOOM --maxzoom $MAXZOOM \
+            --title "$TITLE" --shard ${{ matrix.shard }} --shards $SHARDS --osm mask.gpkg \
+            --out part${{ matrix.shard }}.mbtiles --lowres lowres 2>&1 | tee logs/build${{ matrix.shard }}.log
+          ls -l part*.mbtiles lowres | tee -a logs/build${{ matrix.shard }}.log
+          df -h . | tee -a logs/build${{ matrix.shard }}.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part${{ matrix.shard }}
+          path: |
+            part${{ matrix.shard }}.mbtiles
+            lowres/
+          retention-days: 3
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "build ${{ matrix.shard }} ${{ github.run_id }} ${{ job.status }}" render-logs-${{ matrix.shard }}
+
+  finish:
+    needs: [setup, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-pil gdal-bin fonts-dejavu-core
+      - name: Settings
+        run: cat "regions/${{ needs.setup.outputs.region }}.env" | grep -v '^#' | grep . | sed 's/"//g' >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+          merge-multiple: true
+      - name: Overview and merge
+        run: |
+          mkdir -p logs out
+          set -o pipefail
+          ls -l parts parts/lowres | tee logs/finish.log
+          python3 scripts/baumhoehe.py overview --bbox "$BBOX" --zsplit $ZSPLIT --minzoom $MINZOOM --maxzoom $MAXZOOM \
+            --title "$TITLE" --out parts/overview.mbtiles --lowres parts/lowres 2>&1 | tee -a logs/finish.log
+          python3 scripts/baumhoehe.py merge out/$NAME.mbtiles parts/overview.mbtiles parts/part*.mbtiles 2>&1 | tee -a logs/finish.log
+          size=$(stat -c %s out/$NAME.mbtiles)
+          if [ "$size" -gt 1900000000 ]; then
+            # zu gross für eine Release-Datei: Teile einzeln (die App zeigt alle Teile zusammen als eine Karte)
+            rm out/$NAME.mbtiles
+            n=$(ls parts/part*.mbtiles | wc -l); n=$((n + 1)); k=1
+            for f in parts/overview.mbtiles parts/part*.mbtiles; do cp "$f" "out/$NAME-part${k}of${n}.mbtiles"; k=$((k + 1)); done
+          fi
+          python3 scripts/baumhoehe.py legend out/$NAME-legende.png
+          ls -l out | tee -a logs/finish.log
+      - name: Preview
+        run: |
+          f=$(ls out/*.mbtiles | head -1)
+          python3 scripts/preview.py "$f" logs 11 13 15 16 2>&1 | tee -a logs/finish.log || true
+          cp out/$NAME-legende.png logs/
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="baumhoehe-$NAME"
+          gh release view $TAG -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create $TAG -R "$GITHUB_REPOSITORY" \
+            -t "$TITLE (Overlay)" -n "Baumhöhe (Kronenhöhe über Grund) als MBTiles-Overlay, 512-px-WebP mit Transparenz, Zoom $MINZOOM–$MAXZOOM.
+          Quelle: nDOM1, Datenquelle LGL, www.lgl-bw.de, Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0), Daten geändert (Farbgebung, Gebäude/Wasser ausmaskiert).
+          Maske: © OpenStreetMap-Mitwirkende (ODbL). Legende: $NAME-legende.png"
+          gh release upload $TAG out/* -R "$GITHUB_REPOSITORY" --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "finish ${{ github.run_id }} ${{ job.status }}" render-logs
