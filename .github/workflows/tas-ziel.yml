@@ -25,9 +25,13 @@ jobs:
           curl -fsSL -o au.osm.pbf https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf
           osmium extract -b 143.5,-44.0,149.0,-39.3 au.osm.pbf -o tas.osm.pbf --overwrite
           bash scripts/prepare_scanmask.sh tas.osm.pbf tasmask.gpkg 28355 2>&1 | tee logs/mask.log
-          python3 scripts/filter_trees.py trees.csv tasmask.gpkg trees_ok.csv trees_osm_removed.csv 2>&1 | tee logs/filter.log
+          python3 scripts/filter_trees.py trees.csv tasmask.gpkg trees_osm.csv trees_osm_removed.csv 2>&1 | tee logs/filter.log
+          # Formprüfung hoher Spitzen auf den Rohdaten (Leitungsseile über Tälern, Einzelspitzen ohne Krone)
+          python3 scripts/verify_tall.py trees_osm.csv https://github.com/${{ github.repository }}/releases/download/tas-chm/index.csv \
+            trees_ok.csv trees_shape_removed.csv --min 70 2>&1 | tee logs/verify.log
+          cp trees_shape_removed.csv logs/
           python3 scripts/tree_groups.py trees_ok.csv out/tasmanien_gruppen_ab_80m --min 80 2>&1 | tee logs/groups.log
-          cp out/tasmanien_gruppen_ab_80m.* trees_osm_removed.csv logs/
+          cp out/tasmanien_gruppen_ab_80m.csv out/tasmanien_gruppen_ab_80m_verdaechtig.csv logs/; head -2000 trees_osm_removed.csv > logs/trees_osm_removed_head.csv
       - name: Render
         run: |
           set -o pipefail

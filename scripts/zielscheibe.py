@@ -220,6 +220,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("trees"); ap.add_argument("out")
     ap.add_argument("--min", type=float, default=50)
+    ap.add_argument("--max", type=float, default=102, help="höher = Messfehler (höchster bekannter Baum Tasmaniens: 100,5 m)")
     ap.add_argument("--minzoom", type=int, default=8); ap.add_argument("--maxzoom", type=int, default=14)
     ap.add_argument("--quality", type=int, default=85)
     ap.add_argument("--title", default="Riesenbäume")
@@ -229,7 +230,7 @@ def main():
     lon, lat, h = [], [], []
     with open(a.trees) as f:
         for row in csv.DictReader(f):
-            if float(row["height_m"]) >= a.min:
+            if a.min <= float(row["height_m"]) <= a.max:
                 lon.append(float(row["lon"])); lat.append(float(row["lat"])); h.append(float(row["height_m"]))
     lon, lat, H = np.array(lon), np.array(lat), np.array(h)
     X, Y = merc(lon, lat)

@@ -13,8 +13,13 @@ from scipy.spatial import cKDTree
 ap = argparse.ArgumentParser()
 ap.add_argument("trees"); ap.add_argument("out")
 ap.add_argument("--min", type=float, default=80); ap.add_argument("--link", type=float, default=250)
+ap.add_argument("--max", type=float, default=102)
 a = ap.parse_args()
-rows = [r for r in csv.DictReader(open(a.trees)) if float(r["height_m"]) >= a.min]   # nur Bäume ab --min
+allrows = [r for r in csv.DictReader(open(a.trees)) if float(r["height_m"]) >= a.min]   # nur Bäume ab --min
+rows = [r for r in allrows if float(r["height_m"]) <= a.max]
+sus = [r for r in allrows if float(r["height_m"]) > a.max]   # höher als jeder bekannte Baum: vermutlich Messfehler
+with open(a.out + "_verdaechtig.csv", "w", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=list(allrows[0].keys()) if allrows else ["lon"]); w.writeheader(); w.writerows(sus)
 lon = np.array([float(r["lon"]) for r in rows]); lat = np.array([float(r["lat"]) for r in rows])
 h = np.array([float(r["height_m"]) for r in rows])
 lat0 = math.radians(float(np.median(lat)))
