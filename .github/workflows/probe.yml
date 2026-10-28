@@ -1,0 +1,18 @@
+name: probe
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe
+        run: |
+          mkdir -p logs
+          bash scripts/probe.sh > logs/probe.txt 2>&1 || true
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "probe ${{ github.run_id }}" probe-logs
