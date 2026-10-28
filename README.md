@@ -4,7 +4,7 @@ Baumhöhe (Kronenhöhe über Grund) als **MBTiles-Overlay** für LoriMaps: 512-p
 identische Kacheln nur einmal gespeichert (gleiches Schema wie `lorimaps-render`).
 
 > **GitHub:** Ein Push auf `render.env`, `regions/` oder die Skripte startet den Workflow „Render Baumhöhen-Overlay“
-> (oder manuell mit Eingabe der Region). Ergebnis unter *Releases* (`baumhoehe-<NAME>`), Logs und Vorschaubilder
+> (oder manuell mit Eingabe der Region). Ergebnis unter *Releases* (`baumhoehe-<NAME>`); Tasmanien: zuerst „Prepare Tasmania canopy“, dann Render mit Region `styx`, Logs und Vorschaubilder
 > in den Branches `render-logs` und `render-logs-<shard>`.
 
 ## Daten
@@ -22,8 +22,8 @@ Das ist für Baumhöhen besser geeignet als DOM1 − DGM1, weil das DOM1 aus **u
 ## Ablauf (`scripts/baumhoehe.py`)
 
 Das Gebiet wird in Blockkacheln der Zoomstufe `ZSPLIT` (11, ca. 13 × 13 km) zerlegt und auf `SHARDS` Rechner verteilt.
-Pro Block: nDOM laden → nach Web Mercator (0,8 m bei z16) → Maske → 2-Band-Zwischenraster (Höhe×4, Kronendeckung)
-mit gemittelten Übersichten → Kacheln z11–z16 → Block löschen. Damit bleibt der Platzbedarf pro Rechner klein, egal wie
+Pro Block: nDOM laden → nach Web Mercator (1,6 m bei z15) → Maske → 2-Band-Zwischenraster (Höhe×4, Kronendeckung)
+mit gemittelten Übersichten → Kacheln z11–z15 → Block löschen. Damit bleibt der Platzbedarf pro Rechner klein, egal wie
 gross das Gebiet ist. Ein Abschlussjob rendert z8–z10 aus den Block-Übersichten und fügt alles zusammen; wird die Datei
 grösser als 1,9 GB (Release-Grenze), bleiben es Teile `…-partKofN.mbtiles`.
 
@@ -38,3 +38,14 @@ Darstellung: Farbe = mittlere Kronenhöhe, Deckkraft = Kronendeckung (max. 80 %)
 
 Baumhöhe: Datenquelle LGL, www.lgl-bw.de (nDOM1), dl-de/by-2-0, Daten geändert. Maske: © OpenStreetMap-Mitwirkende (ODbL).
 Steht in den Metadaten jeder MBTiles-Datei.
+
+## Tasmanien (Region `styx`)
+
+Quelle: theLIST **Tree Canopy Height** (aus allen LiDAR-Projekten von Land Tasmania, 2 m, © State of Tasmania,
+CC BY 3.0 AU), landesweit als ZIP (~8,4 GB): `https://listdata.thelist.tas.gov.au/opendata/data/LIST_TREE_CANOPY_HEIGHT_STATEWIDE.zip`.
+Nur wo LiDAR geflogen wurde. Workflow „Prepare Tasmania canopy“ schneidet einen Ausschnitt aus und legt ihn als
+Release `tas-data` ab; `SOURCE=release:tas-data/tas-chm-<name>.tif` in der Region verwendet ihn.
+
+Farbskala `riesen`: unter 50 m zurückhaltend grau-blau, ab 50 m gelb → orange → rot → magenta → violett (100 m).
+Bäume ab 50 m werden auf allen Zoomstufen mit ihrer **Maximalhöhe** gezeichnet, verschwinden also auch weit
+herausgezoomt nicht im Mittelwert.

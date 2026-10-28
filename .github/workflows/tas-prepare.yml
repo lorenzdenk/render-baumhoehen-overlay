@@ -1,0 +1,60 @@
+name: Prepare Tasmania canopy
+# Lädt theLIST "Tree Canopy Height" (LiDAR, 2 m, © State of Tasmania, CC BY 3.0 AU; ca. 8,4 GB) und legt einen
+# Ausschnitt als Release-Datei "tas-data/tas-chm-<name>.tif" ab (wird vom Render-Workflow über SOURCE geladen).
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Name des Ausschnitts"
+        default: styx
+      bbox:
+        description: "W,S,E,N in Grad (etwas grösser als die Region)"
+        default: "146.50,-43.15,146.98,-42.80"
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin unzip
+      - name: Download and clip
+        run: |
+          mkdir -p logs
+          exec > >(tee logs/tas-prepare.log) 2>&1
+          set -x
+          df -h .
+          curl -fsSL -o chm.zip "https://listdata.thelist.tas.gov.au/opendata/data/LIST_TREE_CANOPY_HEIGHT_STATEWIDE.zip"
+          ls -l chm.zip
+          unzip -l chm.zip | head -40; unzip -l chm.zip | tail -3
+          mkdir -p chm && unzip -q chm.zip -d chm && rm chm.zip
+          find chm -maxdepth 4 | head -40
+          # Raster finden: GeoTIFF, IMG, ECW, ASCII, ESRI-Grid (hdr.adf) oder File-Geodatabase
+          files=$(find chm -type f \( -iname '*.tif' -o -iname '*.tiff' -o -iname '*.img' -o -iname '*.asc' -o -iname '*.ecw' -o -iname '*.jp2' -o -iname 'hdr.adf' \))
+          gdbs=$(find chm -type d -iname '*.gdb')
+          if [ -n "$files" ]; then
+            gdalbuildvrt src.vrt $files
+          else
+            ras=$(gdalinfo "$gdbs" 2>/dev/null | grep -oE 'SUBDATASET_1_NAME=.*' | cut -d= -f2-)
+            gdalbuildvrt src.vrt "${ras:-$gdbs}"
+          fi
+          gdalinfo src.vrt | head -40
+          IFS=, read W S E N <<< "${{ github.event.inputs.bbox }}"
+          gdalwarp -te $W $S $E $N -te_srs EPSG:4326 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co TILED=YES -co BIGTIFF=IF_SAFER \
+            src.vrt tas-chm-${{ github.event.inputs.name }}.tif
+          gdalinfo -stats -hist tas-chm-${{ github.event.inputs.name }}.tif | tail -30
+          ls -l tas-chm-*.tif
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view tas-data -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create tas-data -R "$GITHUB_REPOSITORY" \
+            --latest=false -t "Tasmanien: Kronenhöhe (Ausschnitte)" -n "Ausschnitte aus theLIST Tree Canopy Height (LiDAR, 2 m), © State of Tasmania, CC BY 3.0 AU."
+          gh release upload tas-data tas-chm-${{ github.event.inputs.name }}.tif -R "$GITHUB_REPOSITORY" --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "tas-prepare ${{ github.run_id }} ${{ job.status }}" tas-logs

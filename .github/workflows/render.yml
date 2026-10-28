@@ -51,10 +51,12 @@ jobs:
         id: week
         run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
+        if: env.OSM_PBF != ''
         with:
           path: mask.gpkg
           key: mask-${{ needs.setup.outputs.region }}-${{ hashFiles('scripts/prepare_mask.sh') }}-${{ steps.week.outputs.week }}
       - name: OSM mask
+        if: env.OSM_PBF != ''
         run: |
           mkdir -p logs
           if [ ! -f mask.gpkg ]; then
@@ -62,11 +64,24 @@ jobs:
             bash scripts/prepare_mask.sh in.osm.pbf mask.gpkg 2>&1 | tee logs/mask.log
             rm in.osm.pbf
           fi
+      - name: Source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p logs src
+          src="${SOURCE:-lgl}"
+          case "$src" in
+            release:*) r=${src#release:}; gh release download "${r%%/*}" -p "${r#*/}" -D src -R "$GITHUB_REPOSITORY"
+                       src="raster:$PWD/src/${r#*/}"; gdalinfo "${src#raster:}" | head -25 | tee logs/source.log ;;
+          esac
+          echo "SRC=$src" >> "$GITHUB_ENV"
+          osm=""; [ -f mask.gpkg ] && osm="--osm mask.gpkg"; echo "OSMARG=$osm" >> "$GITHUB_ENV"
       - name: Build
         run: |
           set -o pipefail
           python3 scripts/baumhoehe.py build --bbox "$BBOX" --zsplit $ZSPLIT --minzoom $MINZOOM --maxzoom $MAXZOOM \
-            --title "$TITLE" --shard ${{ matrix.shard }} --shards $SHARDS --osm mask.gpkg \
+            --title "$TITLE" --shard ${{ matrix.shard }} --shards $SHARDS $OSMARG --source "$SRC" \
+            --palette "${PALETTE:-standard}" ${DESCRIPTION:+--description "$DESCRIPTION"} ${ATTRIBUTION:+--attribution "$ATTRIBUTION"} \
             --out part${{ matrix.shard }}.mbtiles --lowres lowres 2>&1 | tee logs/build${{ matrix.shard }}.log
           ls -l part*.mbtiles lowres | tee -a logs/build${{ matrix.shard }}.log
           df -h . | tee -a logs/build${{ matrix.shard }}.log
@@ -102,7 +117,8 @@ jobs:
           set -o pipefail
           ls -l parts parts/lowres | tee logs/finish.log
           python3 scripts/baumhoehe.py overview --bbox "$BBOX" --zsplit $ZSPLIT --minzoom $MINZOOM --maxzoom $MAXZOOM \
-            --title "$TITLE" --out parts/overview.mbtiles --lowres parts/lowres 2>&1 | tee -a logs/finish.log
+            --title "$TITLE" --palette "${PALETTE:-standard}" ${DESCRIPTION:+--description "$DESCRIPTION"} \
+            ${ATTRIBUTION:+--attribution "$ATTRIBUTION"} --out parts/overview.mbtiles --lowres parts/lowres 2>&1 | tee -a logs/finish.log
           python3 scripts/baumhoehe.py merge out/$NAME.mbtiles parts/overview.mbtiles parts/part*.mbtiles 2>&1 | tee -a logs/finish.log
           size=$(stat -c %s out/$NAME.mbtiles)
           if [ "$size" -gt 1900000000 ]; then
@@ -111,12 +127,12 @@ jobs:
             n=$(ls parts/part*.mbtiles | wc -l); n=$((n + 1)); k=1
             for f in parts/overview.mbtiles parts/part*.mbtiles; do cp "$f" "out/$NAME-part${k}of${n}.mbtiles"; k=$((k + 1)); done
           fi
-          python3 scripts/baumhoehe.py legend out/$NAME-legende.png
+          python3 scripts/baumhoehe.py legend --palette "${PALETTE:-standard}" out/$NAME-legende.png
           ls -l out | tee -a logs/finish.log
       - name: Preview
         run: |
           f=$(ls out/*.mbtiles | head -1)
-          python3 scripts/preview.py "$f" logs 11 13 15 16 2>&1 | tee -a logs/finish.log || true
+          python3 scripts/preview.py "$f" logs 10 12 14 15 2>&1 | tee -a logs/finish.log || true
           cp out/$NAME-legende.png logs/
       - name: Release
         env:
@@ -125,8 +141,9 @@ jobs:
           TAG="baumhoehe-$NAME"
           gh release view $TAG -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create $TAG -R "$GITHUB_REPOSITORY" \
             -t "$TITLE (Overlay)" -n "Baumhöhe (Kronenhöhe über Grund) als MBTiles-Overlay, 512-px-WebP mit Transparenz, Zoom $MINZOOM–$MAXZOOM.
-          Quelle: nDOM1, Datenquelle LGL, www.lgl-bw.de, Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0), Daten geändert (Farbgebung, Gebäude/Wasser ausmaskiert).
-          Maske: © OpenStreetMap-Mitwirkende (ODbL). Legende: $NAME-legende.png"
+          ${DESCRIPTION}
+          Quelle/Lizenz: ${ATTRIBUTION:-Datenquelle LGL, www.lgl-bw.de (nDOM1), dl-de/by-2-0, Daten geändert; Maske © OpenStreetMap-Mitwirkende (ODbL)}.
+          Legende: $NAME-legende.png"
           gh release upload $TAG out/* -R "$GITHUB_REPOSITORY" --clobber
       - name: Publish log
         if: always()

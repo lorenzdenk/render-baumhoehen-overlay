@@ -8,10 +8,13 @@ Ablauf (skaliert bis ganz BW):
   speichern, aufräumen. Die Blockkacheln werden auf mehrere Rechner (Shards) verteilt.
   Danach rendert "overview" die Zoomstufen MINZOOM..ZSPLIT-1 aus den gespeicherten Übersichten.
 
-Kodierung im Zwischenraster (2 Bänder, Byte):
-  Band 1 = Baumhöhe * 4 (0,25-m-Schritte, 0 = keine Krone), Band 2 = 255 wo Krone (Höhe >= MIN_H), sonst 0.
-  Beim Verkleinern werden beide Bänder gemittelt; mittlere Kronenhöhe = Band1 / Band2 * 255 / 4,
-  Deckung = Band2 / 255 (wird als Transparenz verwendet).
+Kodierung im Zwischenraster (3 Bänder, Byte):
+  Band 1 = Baumhöhe * 2 (0,5-m-Schritte bis 127 m, 0 = keine Krone), Band 2 = 255 wo Krone (Höhe >= min_h), sonst 0,
+  Band 3 = wie Band 1, aber beim Verkleinern wird das Maximum genommen (für hervorgehobene Riesenbäume).
+  Band 1 und 2 werden gemittelt; mittlere Kronenhöhe = Band1 / Band2 * 255 / 2, Deckung = Band2 / 255.
+
+Quellen: --source lgl (nDOM1-Kacheln des LGL, Standard) oder --source raster:<Datei> (beliebiges
+Kronenhöhen-Raster in Metern, beliebige Projektion, z.B. theLIST Tree Canopy Height für Tasmanien).
 
 Befehle:
   baumhoehe.py blocks  <W> <S> <E> <N> [--zsplit 11]               Blockkacheln des Gebiets auflisten
@@ -44,26 +47,40 @@ TILE = 512
 LGL = "https://opengeodata.lgl-bw.de/data/ndom1/ndom1_32_{e}_{n}_2_bw.zip"
 UA = {"User-Agent": "render-baumhoehen-overlay (+https://github.com/lorenzdenk/render-baumhoehen-overlay)"}
 
-# Farbskala Baumhöhe (m) -> RGB. Bewusst nicht grün, damit sie sich vom Wald der Grundkarte abhebt.
-STOPS = [
-    (2, (255, 255, 204)), (5, (199, 233, 180)), (10, (127, 205, 187)), (15, (65, 182, 196)),
-    (20, (29, 145, 192)), (25, (34, 94, 168)), (30, (37, 52, 148)), (35, (8, 29, 88)), (45, (74, 20, 134)),
-]
-MIN_H = 2.0      # darunter: keine Krone (Gras, Felder, Rauschen)
-ALPHA = 0.80     # Deckkraft bei voller Kronendeckung
+HS = 2  # Höhe * HS = Bandwert (0,5-m-Schritte, bis 127 m)
+
+# Farbskalen: (Höhe m, (R, G, B), Deckkraft). Bewusst nicht grün, damit sie sich vom Wald der Grundkarte abhebt.
+PALETTES = {
+    # Baden-Württemberg: ganze Bandbreite 2-45 m
+    "standard": dict(min_h=2.0, highlight=None, ticks=(2, 5, 10, 15, 20, 25, 30, 35, 40, 45), legend_max=45, stops=[
+        (2, (255, 255, 204), .8), (5, (199, 233, 180), .8), (10, (127, 205, 187), .8), (15, (65, 182, 196), .8),
+        (20, (29, 145, 192), .8), (25, (34, 94, 168), .8), (30, (37, 52, 148), .8), (35, (8, 29, 88), .8),
+        (45, (74, 20, 134), .8)]),
+    # Riesenbäume: unter 50 m zurückhaltend grau-blau und halbtransparent, ab 50 m kräftig gelb -> rot -> violett.
+    # Ab "highlight" werden Bäume auf allen Zoomstufen mit ihrer Maximalhöhe gezeichnet (verschwinden nicht im Mittel).
+    "riesen": dict(min_h=5.0, highlight=50.0, ticks=(5, 20, 35, 50, 60, 70, 80, 90, 100), legend_max=100, stops=[
+        (5, (215, 222, 226), .30), (35, (150, 170, 190), .45), (49.9, (105, 125, 160), .55),
+        (50, (255, 225, 0), .95), (60, (255, 140, 0), .95), (70, (225, 25, 25), .95), (80, (200, 0, 150), 1.0),
+        (90, (110, 0, 170), 1.0), (100, (40, 0, 90), 1.0)]),
+}
+P = PALETTES["standard"]
+LUT = None
+LUTA = None
 
 
-def lut():
-    """Farbtabelle für Band-1-Werte 0..255 (Höhe*4)."""
-    hs = np.arange(256) / 4.0
-    xs = [s[0] for s in STOPS]
-    out = np.zeros((256, 3), np.uint8)
+def set_palette(name):
+    """Farbtabelle (RGB und Deckkraft) für Bandwerte 0..255."""
+    global P, LUT, LUTA
+    P = PALETTES[name]
+    hs = np.arange(256) / HS
+    xs = [st[0] for st in P["stops"]]
+    LUT = np.zeros((256, 3), np.uint8)
     for c in range(3):
-        out[:, c] = np.interp(hs, xs, [s[1][c] for s in STOPS]).round().astype(np.uint8)
-    return out
+        LUT[:, c] = np.interp(hs, xs, [st[1][c] for st in P["stops"]]).round().astype(np.uint8)
+    LUTA = np.interp(hs, xs, [st[2] for st in P["stops"]]).astype(np.float32)
 
 
-LUT = lut()
+set_palette("standard")
 
 
 # ---------------------------------------------------------------- Kachelrechnung
@@ -152,17 +169,23 @@ def download_unit(args):
 
 
 # ---------------------------------------------------------------- Rendern
-def colorize(b1, b2):
-    """b1, b2: gemittelte Bänder (float). Gibt RGBA uint8 zurück oder None, wenn leer."""
+def colorize(b1, b2, b3=None):
+    """b1, b2: gemittelte Bänder, b3: Maximum (float). Gibt RGBA uint8 zurück oder None, wenn leer."""
     cov = b2 / 255.0
     if not (cov > 0.004).any():
         return None
     with np.errstate(invalid="ignore", divide="ignore"):
-        h4 = np.where(b2 > 0, b1 / np.maximum(b2, 1e-6) * 255.0, 0)
-    idx = np.clip(np.rint(h4), 0, 255).astype(np.uint8)
+        hv = np.where(b2 > 0, b1 / np.maximum(b2, 1e-6) * 255.0, 0)
+    idx = np.clip(np.rint(hv), 0, 255).astype(np.uint8)
     rgba = np.empty(b1.shape + (4,), np.uint8)
     rgba[..., :3] = LUT[idx]
-    rgba[..., 3] = np.clip(np.rint(cov * ALPHA * 255), 0, 255).astype(np.uint8)
+    rgba[..., 3] = np.clip(np.rint(cov * LUTA[idx] * 255), 0, 255).astype(np.uint8)
+    if P["highlight"] and b3 is not None:
+        big = b3 >= P["highlight"] * HS
+        if big.any():
+            i3 = np.clip(np.rint(b3[big]), 0, 255).astype(np.uint8)
+            rgba[big, :3] = LUT[i3]
+            rgba[big, 3] = np.rint(LUTA[i3] * 255).astype(np.uint8)
     return rgba
 
 
@@ -178,14 +201,18 @@ _ds = None
 def _render_job(args):
     """Liest ein Fenster aus dem 2-Band-Raster (mit Übersichten) und gibt (z, x, y, webp) zurück."""
     global _ds
-    path, z, x, y, xoff, yoff, size, quality = args
+    path, z, x, y, xoff, yoff, size, quality, palette = args
+    if LUT is None or P is not PALETTES[palette]:
+        set_palette(palette)
     if _ds is None or _ds.GetDescription() != path:
         _ds = gdal.Open(path)
-    b1 = _ds.GetRasterBand(1).ReadAsArray(xoff, yoff, size, size, TILE, TILE,
-                                          resample_alg=gdal.GRIORA_Average).astype(np.float32)
-    b2 = _ds.GetRasterBand(2).ReadAsArray(xoff, yoff, size, size, TILE, TILE,
-                                          resample_alg=gdal.GRIORA_Average).astype(np.float32)
-    rgba = colorize(b1, b2)
+    rd = lambda k, alg: _ds.GetRasterBand(k).ReadAsArray(xoff, yoff, size, size, TILE, TILE,
+                                                         resample_alg=alg).astype(np.float32)
+    b1 = rd(1, gdal.GRIORA_Average)
+    b2 = rd(2, gdal.GRIORA_Average)
+    # Band 3: Übersichten enthalten bereits das Maximum; das passende Niveau hat genau TILE Pixel
+    b3 = rd(3, gdal.GRIORA_NearestNeighbour) if P["highlight"] else None
+    rgba = colorize(b1, b2, b3)
     return z, x, y, (encode(rgba, quality) if rgba is not None else None)
 
 
@@ -225,8 +252,7 @@ class MBTiles:
 def metadata(a, minzoom, maxzoom):
     w, s, e, n = a.bbox
     return {"name": a.title, "format": "webp", "type": "overlay", "version": "1",
-            "description": "Baumhöhe (Kronenhöhe über Grund) aus dem nDOM1 des LGL BW; Gebäude und Wasser nach OSM ausmaskiert",
-            "attribution": "Baumhöhe: Datenquelle LGL, www.lgl-bw.de (nDOM1), dl-de/by-2-0, Daten geändert; Maske © OpenStreetMap-Mitwirkende",
+            "description": a.description, "attribution": a.attribution,
             "minzoom": str(minzoom), "maxzoom": str(maxzoom), "bounds": f"{w},{s},{e},{n}",
             "center": f"{(w + e) / 2},{(s + n) / 2},{min(maxzoom, 13)}", "tile_size": str(TILE), "scale": "2"}
 
@@ -239,14 +265,18 @@ def build_block(a, bx, by, cache, work, mb, pool):
     res = tile_size(z0) / px
     t0 = time.time()
 
-    units = lgl_units(b)
-    with ThreadPoolExecutor(8) as ex:
-        got = list(ex.map(download_unit, [(u, cache) for u in units]))
-    if any(f is None for _, f in got):
-        raise RuntimeError("Download fehlgeschlagen")
-    tifs = [t for _, f in got for t in f]
-    print(f"  Block {z0}/{bx}/{by}: {len(units)} Einheiten, {len(tifs)} nDOM-Kacheln, "
-          f"Download {time.time() - t0:.0f} s", flush=True)
+    if a.source == "lgl":
+        units = lgl_units(b)
+        with ThreadPoolExecutor(8) as ex:
+            got = list(ex.map(download_unit, [(u, cache) for u in units]))
+        if any(f is None for _, f in got):
+            raise RuntimeError("Download fehlgeschlagen")
+        tifs = [t for _, f in got for t in f]
+        print(f"  Block {z0}/{bx}/{by}: {len(units)} Einheiten, {len(tifs)} nDOM-Kacheln, "
+              f"Download {time.time() - t0:.0f} s", flush=True)
+    else:
+        tifs = [a.source.split(":", 1)[1]]
+        print(f"  Block {z0}/{bx}/{by}: Quelle {tifs[0]}", flush=True)
     if not tifs:
         return 0
 
@@ -273,12 +303,13 @@ def build_block(a, bx, by, cache, work, mb, pool):
 
     out = os.path.join(work, f"block_{bx}_{by}.tif")
     drv = gdal.GetDriverByName("GTiff")
-    ds = drv.Create(out, px, px, 2, gdal.GDT_Byte,
+    ds = drv.Create(out, px, px, 3, gdal.GDT_Byte,
                     ["TILED=YES", "BLOCKXSIZE=512", "BLOCKYSIZE=512", "COMPRESS=DEFLATE", "PREDICTOR=2", "BIGTIFF=IF_SAFER"])
     ds.SetGeoTransform((b[0], res, 0, b[3], 0, -res))
     ds.SetProjection("EPSG:3857")
     strip = 2048
     stats = np.zeros(4)
+    top = 0.0
     for r0 in range(0, px, strip):
         rows = min(strip, px - r0)
         sb = (b[0], b[3] - (r0 + rows) * res, b[2], b[3] - r0 * res)
@@ -287,25 +318,44 @@ def build_block(a, bx, by, cache, work, mb, pool):
         h = w.GetRasterBand(1).ReadAsArray()
         w = None
         valid = h > -9000
-        crown = valid & (h >= MIN_H)
+        crown = valid & (h >= P["min_h"]) & (h < 125)
         if mask is not None:
             crown &= ~mask[r0:r0 + rows]
-        b1 = np.where(crown, np.clip(np.rint(h * 4), 0, 252), 0).astype(np.uint8)
+        b1 = np.where(crown, np.clip(np.rint(h * HS), 0, 254), 0).astype(np.uint8)
         b2 = np.where(crown, 255, 0).astype(np.uint8)
         ds.GetRasterBand(1).WriteArray(b1, 0, r0)
         ds.GetRasterBand(2).WriteArray(b2, 0, r0)
-        stats += [valid.sum(), crown.sum(), np.where(crown, h, 0).sum(), (h[crown] > 50).sum() if crown.any() else 0]
+        ds.GetRasterBand(3).WriteArray(b1, 0, r0)
+        stats += [valid.sum(), crown.sum(), np.where(crown, h, 0).sum(), (h[crown] >= 50).sum() if crown.any() else 0]
+        top = max(top, float(h[crown].max())) if crown.any() else top
     src = None
     ds.FlushCache()
-    ds.BuildOverviews("AVERAGE", [2 ** i for i in range(1, a.maxzoom - z0 + 1)])
-    ds = None
     print(f"    Raster {px} px: Daten {stats[0] / px / px * 100:.0f} %, Krone {stats[1] / max(stats[0], 1) * 100:.0f} %, "
-          f"mittlere Kronenhöhe {stats[2] / max(stats[1], 1):.1f} m, > 50 m: {int(stats[3])} px, {time.time() - t0:.0f} s",
-          flush=True)
-
+          f"mittlere Kronenhöhe {stats[2] / max(stats[1], 1):.1f} m, >= 50 m: {int(stats[3])} px, "
+          f"höchster Wert {top:.1f} m, {time.time() - t0:.0f} s", flush=True)
+    if stats[0] == 0:
+        ds = None
+        os.remove(out)
+        return 0
+    levels = [2 ** i for i in range(1, a.maxzoom - z0 + 1)]
+    ds.BuildOverviews("AVERAGE", levels)
+    # Band 3: Übersichten mit dem Maximum statt dem Mittel überschreiben
+    m = ds.GetRasterBand(3).ReadAsArray()
+    for i in range(len(levels)):
+        m = m.reshape(m.shape[0] // 2, 2, m.shape[1] // 2, 2).max(axis=(1, 3))
+        ds.GetRasterBand(3).GetOverview(i).WriteArray(m)
+    m256 = m.reshape(256, m.shape[0] // 256, 256, m.shape[1] // 256).max(axis=(1, 3))
     # Übersicht für die kleinen Zoomstufen: Blockkachel mit 256 px (= Auflösung von ZSPLIT-1)
     lr = os.path.join(a.lowres, f"{z0}_{bx}_{by}.tif")
-    gdal.Translate(lr, out, width=256, height=256, resampleAlg="average", creationOptions=["COMPRESS=DEFLATE"])
+    lds = gdal.GetDriverByName("GTiff").Create(lr, 256, 256, 3, gdal.GDT_Byte, ["COMPRESS=DEFLATE"])
+    lds.SetGeoTransform((b[0], tile_size(z0) / 256, 0, b[3], 0, -tile_size(z0) / 256))
+    lds.SetProjection("EPSG:3857")
+    for k in (1, 2):
+        lds.GetRasterBand(k).WriteArray(ds.GetRasterBand(k).ReadAsArray(0, 0, px, px, 256, 256,
+                                                                        resample_alg=gdal.GRIORA_Average))
+    lds.GetRasterBand(3).WriteArray(m256)
+    lds = None
+    ds = None
 
     jobs = []
     for z in range(z0, a.maxzoom + 1):
@@ -313,7 +363,7 @@ def build_block(a, bx, by, cache, work, mb, pool):
         size = px // k
         for j in range(k):
             for i in range(k):
-                jobs.append((out, z, bx * k + i, by * k + j, i * size, j * size, size, a.quality))
+                jobs.append((out, z, bx * k + i, by * k + j, i * size, j * size, size, a.quality, a.palette))
     n = 0
     for z, x, y, data in pool.imap_unordered(_render_job, jobs, chunksize=8):
         if data:
@@ -337,7 +387,7 @@ def cmd_build(a):
         for i, (bx, by) in enumerate(mine):
             build_block(a, bx, by, cache, work, mb, pool)
             # Cache: nur Einheiten behalten, die die nächste Blockkachel braucht
-            keep = set(lgl_units(tile_bounds(a.zsplit, *mine[i + 1]))) if i + 1 < len(mine) else set()
+            keep = set(lgl_units(tile_bounds(a.zsplit, *mine[i + 1]))) if i + 1 < len(mine) and a.source == "lgl" else set()
             for d in os.listdir(cache):
                 try:
                     e, n = map(int, d.split("_"))
@@ -353,10 +403,9 @@ def cmd_build(a):
 def cmd_overview(a):
     tifs = sorted(os.path.join(a.lowres, f) for f in os.listdir(a.lowres) if f.endswith(".tif"))
     print(f"{len(tifs)} Übersichten", flush=True)
-    vrt = os.path.abspath("lowres.vrt")
-    gdal.BuildVRT(vrt, tifs)
+    v12 = gdal.BuildVRT(os.path.abspath("lowres12.vrt"), tifs, bandList=[1, 2])
+    v3 = gdal.BuildVRT(os.path.abspath("lowres3.vrt"), tifs, bandList=[3])
     zmax = a.zsplit - 1
-    ds = gdal.Open(vrt)
     mb = MBTiles(a.out, metadata(a, a.minzoom, zmax))
     if True:
         for z in range(a.minzoom, zmax + 1):
@@ -364,12 +413,13 @@ def cmd_overview(a):
             n = 0
             for x, y in jobs:
                 tb = tile_bounds(z, x, y)
-                # Ausserhalb der Übersichten wird mit 0 (= keine Krone) aufgefüllt; kein Nodata, damit 0 mitgemittelt wird
-                w = gdal.Translate("", ds, format="MEM", projWin=[tb[0], tb[3], tb[2], tb[1]], width=TILE, height=TILE,
-                                   resampleAlg="average", noData="none")
+                # Ausserhalb der Übersichten bleibt 0 (= keine Krone); kein Nodata, damit 0 mitgemittelt wird
+                w = gdal.Warp("", v12, format="MEM", outputBounds=tb, width=TILE, height=TILE, resampleAlg="average")
                 b1 = w.GetRasterBand(1).ReadAsArray().astype(np.float32)
                 b2 = w.GetRasterBand(2).ReadAsArray().astype(np.float32)
-                rgba = colorize(b1, b2)
+                w = gdal.Warp("", v3, format="MEM", outputBounds=tb, width=TILE, height=TILE, resampleAlg="max")
+                b3 = w.GetRasterBand(1).ReadAsArray().astype(np.float32)
+                rgba = colorize(b1, b2, b3)
                 if rgba is not None:
                     mb.add(z, x, y, encode(rgba, a.quality)); n += 1
             print(f"  zoom {z}: {n}/{len(jobs)} Kacheln", flush=True)
@@ -412,13 +462,15 @@ def cmd_merge(a):
 
 def cmd_legend(a):
     w, h = 520, 90
+    top = P["legend_max"]
     img = Image.new("RGBA", (w, h), (255, 255, 255, 255))
-    hs = np.linspace(0, 45, w - 40)
+    hs = np.linspace(0, top, w - 40)
     bar = np.zeros((26, w - 40, 4), np.uint8)
     for i, v in enumerate(hs):
-        if v >= MIN_H:
-            bar[:, i, :3] = LUT[min(int(round(v * 4)), 255)]
-            bar[:, i, 3] = int(ALPHA * 255)
+        if v >= P["min_h"]:
+            k = min(int(round(v * HS)), 255)
+            bar[:, i, :3] = LUT[k]
+            bar[:, i, 3] = int(LUTA[k] * 255)
     img.alpha_composite(Image.fromarray(bar, "RGBA"), (20, 20))
     from PIL import ImageDraw, ImageFont
     d = ImageDraw.Draw(img)
@@ -426,11 +478,11 @@ def cmd_legend(a):
         font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
     except OSError:
         font = ImageFont.load_default()
-    for v in (2, 5, 10, 15, 20, 25, 30, 35, 40, 45):
-        x = 20 + int(v / 45 * (w - 41))
+    for v in P["ticks"]:
+        x = 20 + int(v / top * (w - 41))
         d.line([(x, 46), (x, 52)], fill=(0, 0, 0))
         d.text((x - 6, 55), str(v), fill=(0, 0, 0), font=font)
-    d.text((20, 72), "Baumhöhe in m (unter 2 m transparent)", fill=(0, 0, 0), font=font)
+    d.text((20, 72), f"Baumhöhe in m (unter {P['min_h']:g} m transparent)", fill=(0, 0, 0), font=font)
     img.save(a.out)
 
 
@@ -442,11 +494,17 @@ def main():
         p.add_argument("--bbox", type=lambda s: [float(v) for v in s.split(",")], required=True)
         p.add_argument("--zsplit", type=int, default=11)
         p.add_argument("--minzoom", type=int, default=8)
-        p.add_argument("--maxzoom", type=int, default=16)
+        p.add_argument("--maxzoom", type=int, default=15)
         p.add_argument("--quality", type=int, default=80)
         p.add_argument("--title", default="Baumhöhe")
         p.add_argument("--out", required=True)
         p.add_argument("--lowres", required=True)
+        p.add_argument("--palette", default="standard", choices=sorted(PALETTES))
+        p.add_argument("--source", default="lgl")
+        p.add_argument("--description", default="Baumhöhe (Kronenhöhe über Grund) aus dem nDOM1 des LGL BW; "
+                                                 "Gebäude und Wasser nach OSM ausmaskiert")
+        p.add_argument("--attribution", default="Baumhöhe: Datenquelle LGL, www.lgl-bw.de (nDOM1), dl-de/by-2-0, "
+                                                 "Daten geändert; Maske © OpenStreetMap-Mitwirkende")
 
     p = sub.add_parser("blocks"); p.add_argument("--bbox", type=lambda s: [float(v) for v in s.split(",")], required=True)
     p.add_argument("--zsplit", type=int, default=11)
@@ -454,9 +512,11 @@ def main():
     p.add_argument("--shard", type=int, default=0); p.add_argument("--shards", type=int, default=1)
     p.add_argument("--osm", default=None); p.add_argument("--cache", default="cache"); p.add_argument("--work", default="work")
     p = sub.add_parser("overview"); common(p)
-    p = sub.add_parser("legend"); p.add_argument("out")
+    p = sub.add_parser("legend"); p.add_argument("out"); p.add_argument("--palette", default="standard")
     p = sub.add_parser("merge"); p.add_argument("out"); p.add_argument("parts", nargs="+")
     a = ap.parse_args()
+    if getattr(a, "palette", None):
+        set_palette(a.palette)
     if a.cmd == "blocks":
         for x, y in blocks(a.bbox, a.zsplit):
             b = tile_bounds(a.zsplit, x, y)
