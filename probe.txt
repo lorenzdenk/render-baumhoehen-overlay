@@ -1,0 +1,47 @@
+=== listdata opendata index
+5693 od.html
+js resources/opendata.js 84555
+== data/opendata.json
+404 322
+== opendata.json
+404 317
+== resources/opendata.json
+404 327
+== data/index.json
+404 319
+=== candidate canopy URLs
+https://listdata.thelist.tas.gov.au/opendata/data/LIST_TREE_CANOPY_HEIGHT_STATEWIDE.zip -> 200 0 Content-Length: 8438009757
+https://listdata.thelist.tas.gov.au/opendata/data/LIST_Tree_Canopy_Height.zip -> 404 0 
+https://listdata.thelist.tas.gov.au/opendata/data/LIST_TREE_CANOPY_HEIGHT.zip -> 404 0 
+=== RasterMisc service
+{'capabilities': 'Data,Map,Query', 'singleFusedMapCache': False, 'supportsDynamicLayers': False, 'maxImageHeight': 4096, 'maxImageWidth': 4096, 'supportedImageFormatTypes': 'PNG32,PNG24,PNG,JPG,DIB,TIFF,EMF,PS,PDF,GIF,SVG,SVGZ,BMP', 'copyrightText': ''}
+[(0, 'Tree Canopy Height'), (1, 'Slope'), (2, 'Slope in Degrees'), (73, 'Digital Terrain Model 10m'), (75, 'Slope 10m'), (3, 'Hobart_MDB_1895_1905')]
+== identify at the point
+{"results":[{"layerId":0,"layerName":"Tree Canopy Height","displayFieldName":"","attributes":{"Stretched value":"98","Pixel Value":"16"}}]}
+== export as float tiff?
+exp.tif: PNG image data, 600 x 600, 8-bit/color RGBA, non-interlaced
+Size is 600, 600
+Band 1 Block=600x1 Type=Byte, ColorInterp=Red
+  Minimum=0.000, Maximum=255.000, Mean=146.778, StdDev=77.746
+Band 2 Block=600x1 Type=Byte, ColorInterp=Green
+  Minimum=22.000, Maximum=255.000, Mean=144.218, StdDev=88.159
+Band 3 Block=600x1 Type=Byte, ColorInterp=Blue
+  Minimum=0.000, Maximum=255.000, Mean=168.558, StdDev=109.093
+Band 4 Block=600x1 Type=Byte, ColorInterp=Alpha
+  Minimum=255.000, Maximum=255.000, Mean=255.000, StdDev=0.000
+exp.png: PNG image data, 600 x 600, 8-bit/color RGBA, non-interlaced
+{"currentVersion":10.91,"id":0,"name":"Tree Canopy Height","type":"Raster Layer","description":"Tree canopy height (m) derived from LiDAR data.\n\nCoverage will only be in areas of LiDAR coverage.\n","geometryType":null,"copyrightText":"","parentLayer":null,"subLayers":[],"minScale":4622324.434309,"maxScale":0,"defaultVisibility":false,"extent":{"xmin":1.598735211029313E7,"ymin":-5411441.290977482,"xmax":1.6540622583449237E7,"ymax":-4804307.993363477,"spatialReference":{"wkid":102100,"latestWkid":3857}},"hasAttachments":false,"htmlPopupType":"esriServerHTMLPopupTypeNone","displayField":"","typeIdField":null,"subtypeFieldName":null,"subtypeField":null,"defaultSubtypeCode":null,"fields":null,"geometryField":{},"indexes":[],"subtypes":[],"relationships":[],"canModifyLayer":false,"canScaleSymbols":false,"hasLabels":false,"capabilities":"Map,Query","supportsStatistics":false,"supportsAdvancedQueries":false,"supportedQueryFormats":"JSON, geoJSON","isDataVersioned":false,"ownershipBasedAccessControlForFeatures":{"allowOthersToQuery":true},"useStandardizedQueries":true,"advancedQueryCapabilities":{"useStandardizedQueries":true,"supportsStatistics":false,"supportsHavingClause":false,"supportsCountDistinct":false,"supportsOrderBy":false,"supportsDistinct":false,"supportsPagination":false,"supportsTrueCurve":false,"supportsReturningQueryExtent":true,"supportsQueryWithDistance":true,"supportsSqlExpression":false},"dateFieldsTimeReference":null,"supportsCoordinatesQuantization":true}
+{"layers":[{"layerId":0,"layerName":"Tree Canopy Height","layerType":"Raster Layer","minScale":4622324,"maxScale":0,"legend":[{"label":"High : 200","url":"61abcdea43eb96c840c45dff04badd11","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAAFBJREFUOI3N08kJwEAMQ1EdBLPCzDkFpP8GHaeJf7ALeEgCO1+lwLMekpOsQ4OXBjcNLhrEE+LgLA+O8mD9yh0Gv8m+ioOunIMVHfSG0RsK/mdVCFlawKaIAAAAAElFTkSuQmCC","contentType":"image/png","height":20,"width":20},{"label":"","url":"ccac39d822579b9d6c318e886c5f0263","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAAGFJREFUOI2t0rENgDAMBdFfWIpANGkYgv2noaKmAhTAOIVZ4jzA01m2HbmkwLHQTHqyrsqCoYkFOw1+OJgjC4Zg0OmVnS8cWPClC2+68KHfptGFFw2e9FF2unCjC9csKPgDkQ0ZUjXbtHwAAAAASUVORK5CYII=","contentType":"image/png","height":20,"width":20},{"label":"Low : -2","url":"9133327e8a60051618b40a305652050f","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAAGFJREFUOI2t1DEKgDAQRNGJjihY2aTx/lezEiFEU2nWS/w9wGN+s1aLEHjeG8lJzg8MbvTClV640OBEJ8/0wvGGwUQnD3RyopNFJ6vCYNDJvcBgVPQdyt+FevJ70AtP1NMPodcdpylunqAAAAAASUVORK5CYII=","contentType":"image/png","height":20,"width":20}]},{"layerId":1,"layerName":"Slope","layerType":"Raster Layer","minScale":4622324,"maxScale":0,"legend":[{"label":"0 - 25","url":"98fb6d62c20377d8d861e56ede28766f","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAADZJREFUOI1jYaAyYKGlgf+pYB4jugsZKTDsPwMDjb08auCogaMGjhqI00BKykRGdAMpKQvhAABd0QNSDPGCHwAAAABJRU5ErkJggg==","contentType":"image/png","height":20,"width":20},{"label":"25 - 30","url":"979f089d84db1c82c99f551ce08463a6","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAADpJREFUOI1jYaAyYKGlgf+pYB4jigt7LpJvUok+hKapl0cNHDVw1MBRA7EbCCuCyASM6AYyUmQcFAAAlu4D9pi6J64AAAAASUVORK5CYII=","contentType":"image/png","height":20,"width":20},{"label":"30 - 35","url":"9d0f501b7a616519c2a9d030b4522752","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAADhJREFUOI1jYaAyYKGlgf+pYB4jigv/U2AkIyOEpqmXRw0cNXDUwFEDsRsIK4LIBIzoBlJmHBQAAF8jA1XJU6ZXAAAAAElFTkSuQmCC","contentType":"image/png","height":20,"width":20},{"label":"35 - 40","url":"8ac163e5c93944e9a672941372a4fe7e","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAADlJREFUOI1jYaAyYKGlgf+pYB4jigv/11NgUiOEpqmXRw0cNXDUwFEDsRsIK4LIBIzoBjJSZBwUAACLIwPVgadrdwAAAABJRU5ErkJggg==","contentType":"image/png","height":20,"width":20},{"label":"40 - 90","url":"d1505065bdb83c32f90afcd8e5cb494c","imageData":"iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IB2cksfwAAAAlwSFlzAAAOxAAADsQBlSsOGwAAADZJREFUOI1jYaAyYKGlgf+pYB4jigspMZERStPUy6MGjho4auCogdgNZMSlijjAiG4gheZBAAALgAJUXqzQHAAAAABJRU5ErkJggg==","contentType":"image/png","height":20,"width":20}]},{"layerId":2,"layerName":"Slope in Degrees","layerTy
+=== Meta CHM tile for point
+quadkey 9 313010022
+2024-04-10 17:04:21  700693779 313010022.tif
+Completed 24.0 MiB/668.2 MiB (23.7 MiB/s) with 1 file(s) remainingCompleted 328.0 MiB/668.2 MiB (162.2 MiB/s) with 1 file(s) remainingCompleted 632.0 MiB/668.2 MiB (206.2 MiB/s) with 1 file(s) remainingCompleted 668.2 MiB/668.2 MiB (206.4 MiB/s) with 1 file(s) remainingdownload: s3://dataforgood-fb-data/forests/v1/alsgedi_global_v6_float/chm/313010022.tif to ./meta.tif
+            ID["EPSG",8801]],
+            ID["EPSG",8802]],
+            ID["EPSG",8806]],
+            ID["EPSG",8807]]],
+    ID["EPSG",3857]]
+Origin = (16280475.528516260907054,-5244191.636589371599257)
+Pixel Size = (1.194328566955875,-1.194328566955889)
+Band 1 Block=65536x1 Type=Byte, ColorInterp=Gray
+12
