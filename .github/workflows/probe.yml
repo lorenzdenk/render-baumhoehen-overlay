@@ -1,0 +1,36 @@
+name: probe-lgl
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch portal and grep URL patterns
+        run: |
+          set -x
+          mkdir p && cd p
+          curl -sSL https://opengeodata.lgl-bw.de/ -o index.html
+          cat index.html | head -50
+          for js in $(grep -oE '(src|href)="[^"]+\.(js|json)"' index.html | sed -E 's/.*="([^"]+)"/\1/'); do
+            u="$js"; case "$u" in http*) ;; *) u="https://opengeodata.lgl-bw.de/${u#/}";; esac
+            curl -sSL "$u" -o "$(basename "$u")" || true
+          done
+          ls -la
+          grep -ohE '[a-zA-Z0-9_/.:${}-]*(dgm|dom|ndom)[a-zA-Z0-9_/.${}-]*' *.js 2>/dev/null | sort -u | head -200
+          grep -ohE 'https?://[a-zA-Z0-9_./-]+' *.js | sort -u | head -100
+          grep -ohE '.{120}\.zip.{120}' *.js | head -20
+          grep -ohE '"[a-z0-9_/.-]*(json|geojson)"' *.js | sort -u | head -50
+      - name: Try candidate URLs
+        run: |
+          for u in \
+            https://opengeodata.lgl-bw.de/data/dgm/ \
+            https://opengeodata.lgl-bw.de/data/dom1/ \
+            https://opengeodata.lgl-bw.de/data/ \
+            https://opengeodata.lgl-bw.de/data/dgm/dgm1_32_512_5284_2_bw.zip \
+            https://opengeodata.lgl-bw.de/data/dom1/dom1_32_512_5284_2_bw.zip \
+            ; do echo "== $u"; curl -sSI "$u" | head -5; done
+      - name: QGIS plugin source
+        run: |
+          curl -sSL -o plugin.zip "https://plugins.qgis.org/plugins/BW_OpenGeodataDownloader/version/latest/download/" || true
+          file plugin.zip; unzip -o -q plugin.zip -d plugin || true
+          grep -rhoE 'https?://[^"'"'"' ]+' plugin | sort -u | head -80
+          grep -rnE 'dgm|dom' plugin --include=*.py | head -80
