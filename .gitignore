@@ -1,0 +1,10 @@
+*.mbtiles
+cache/
+work/
+lowres/
+parts/
+out/
+logs/
+*.pbf
+*.gpkg
+__pycache__/
