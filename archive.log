@@ -1,0 +1,143 @@
++ df -h .
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   60G   86G  41% /
++ curl -fsSL -o chm.zip https://listdata.thelist.tas.gov.au/opendata/data/LIST_TREE_CANOPY_HEIGHT_STATEWIDE.zip
+
+real	28m3.024s
+user	0m7.775s
+sys	0m30.540s
++ ls -l chm.zip
+-rw-r--r-- 1 runner runner 8438009757 Oct 28 22:06 chm.zip
++ unzip -l chm.zip
++ head -30 logs/zip-list.txt
+Archive:  chm.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+     1472  2021-09-09 12:05   readme.txt
+    14336  2024-01-18 11:25   TAS_CHM_2m.lyr
+8723768985  2024-06-17 09:23   TAS_CHM_2m.tif
+     1491  2024-06-17 09:23   TAS_CHM_2m.tif.aux.xml
+      275  2024-06-17 09:25   TAS_CHM_2m_Readme.txt
+---------                     -------
+8723786559                     5 files
++ tail -3 logs/zip-list.txt
+      275  2024-06-17 09:25   TAS_CHM_2m_Readme.txt
+---------                     -------
+8723786559                     5 files
++ mkdir -p chm
++ unzip -q chm.zip -d chm
+
+real	0m47.315s
+user	0m44.269s
+sys	0m3.022s
++ rm chm.zip
++ df -h .
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   68G   78G  47% /
+++ find chm -type f '(' -iname '*.tif' -o -iname '*.tiff' -o -iname '*.img' -o -iname '*.asc' -o -iname '*.ecw' -o -iname '*.jp2' -o -iname hdr.adf -o -iname '*.flt' ')'
++ files=chm/TAS_CHM_2m.tif
+++ find chm -type d -iname '*.gdb'
+++ head -1
++ gdbs=
++ echo chm/TAS_CHM_2m.tif
++ head
+chm/TAS_CHM_2m.tif
++ echo chm/TAS_CHM_2m.tif
++ wc -l
+1
++ '[' -n chm/TAS_CHM_2m.tif ']'
++ gdalbuildvrt src.vrt chm/TAS_CHM_2m.tif
+0...10...20...30...40...50...60...70...80...90...100 - done.
++ gdalinfo src.vrt
++ grep -vE '^\s+[0-9.-]+,'
++ head -50
+Driver: VRT/Virtual Raster
+Files: src.vrt
+       chm/TAS_CHM_2m.tif
+Size is 192452, 211828
+Coordinate System is:
+PROJCRS["GDA94 / MGA zone 55",
+    BASEGEOGCRS["GDA94",
+        DATUM["Geocentric Datum of Australia 1994",
+            ELLIPSOID["GRS 1980",6378137,298.257222101,
+                LENGTHUNIT["metre",1]]],
+        PRIMEM["Greenwich",0,
+            ANGLEUNIT["degree",0.0174532925199433]],
+        ID["EPSG",4283]],
+    CONVERSION["UTM zone 55S",
+        METHOD["Transverse Mercator",
+            ID["EPSG",9807]],
+        PARAMETER["Latitude of natural origin",0,
+            ANGLEUNIT["degree",0.0174532925199433],
+            ID["EPSG",8801]],
+        PARAMETER["Longitude of natural origin",147,
+            ANGLEUNIT["degree",0.0174532925199433],
+            ID["EPSG",8802]],
+        PARAMETER["Scale factor at natural origin",0.9996,
+            SCALEUNIT["unity",1],
+            ID["EPSG",8805]],
+        PARAMETER["False easting",500000,
+            LENGTHUNIT["metre",1],
+            ID["EPSG",8806]],
+        PARAMETER["False northing",10000000,
+            LENGTHUNIT["metre",1],
+            ID["EPSG",8807]]],
+    CS[Cartesian,2],
+        AXIS["easting",east,
+            ORDER[1],
+            LENGTHUNIT["metre",1]],
+        AXIS["northing",north,
+            ORDER[2],
+            LENGTHUNIT["metre",1]],
+    ID["EPSG",28355]]
+Data axis to CRS axis mapping: 1,2
+Origin = (229027.713100000313716,5590653.061900000087917)
+Pixel Size = (2.000000000000000,-2.000000000000000)
+Corner Coordinates:
+Upper Left  (  229027.713, 5590653.062) (143d50' 7.61"E, 39d47'27.42"S)
+Lower Left  (  229027.713, 5166997.062) (143d38'33.84"E, 43d36' 2.51"S)
+Upper Right (  613931.713, 5590653.062) (148d19'52.82"E, 39d49'35.35"S)
+Lower Right (  613931.713, 5166997.062) (148d24'45.23"E, 43d38'28.66"S)
+Center      (  421479.713, 5378825.062) (146d 3'20.70"E, 41d44'18.64"S)
+Band 1 Block=128x128 Type=Int16, ColorInterp=Gray
+  Min=0.000 Max=200.000 
++ set +x
+Quelle 192452 x 211828 px, 2.0 m, EPSG:28355, Typ Int16, NoData -32768.0
+440 Kacheln à 20 km
+  10/440 Kacheln, 0 mit Daten, 0 Bäume, 0 verworfen, 0.0 min
+  20/440 Kacheln, 0 mit Daten, 0 Bäume, 0 verworfen, 0.1 min
+  30/440 Kacheln, 3 mit Daten, 0 Bäume, 0 verworfen, 0.2 min
+  40/440 Kacheln, 3 mit Daten, 0 Bäume, 0 verworfen, 0.2 min
+  50/440 Kacheln, 3 mit Daten, 0 Bäume, 0 verworfen, 0.3 min
+  60/440 Kacheln, 4 mit Daten, 0 Bäume, 0 verworfen, 0.4 min
+  70/440 Kacheln, 5 mit Daten, 0 Bäume, 0 verworfen, 0.5 min
+  80/440 Kacheln, 6 mit Daten, 0 Bäume, 0 verworfen, 0.5 min
+  90/440 Kacheln, 6 mit Daten, 0 Bäume, 0 verworfen, 0.6 min
+  100/440 Kacheln, 7 mit Daten, 0 Bäume, 0 verworfen, 0.6 min
+  110/440 Kacheln, 8 mit Daten, 0 Bäume, 0 verworfen, 0.8 min
+  120/440 Kacheln, 11 mit Daten, 82 Bäume, 5213 verworfen, 0.9 min
+  130/440 Kacheln, 17 mit Daten, 9635 Bäume, 5547 verworfen, 1.3 min
+  140/440 Kacheln, 23 mit Daten, 22244 Bäume, 5684 verworfen, 1.6 min
+  150/440 Kacheln, 33 mit Daten, 84312 Bäume, 7164 verworfen, 2.1 min
+  160/440 Kacheln, 41 mit Daten, 102997 Bäume, 7789 verworfen, 2.7 min
+  170/440 Kacheln, 49 mit Daten, 201846 Bäume, 8812 verworfen, 3.2 min
+  180/440 Kacheln, 56 mit Daten, 267536 Bäume, 12323 verworfen, 3.7 min
+  190/440 Kacheln, 65 mit Daten, 370594 Bäume, 14048 verworfen, 4.2 min
+  200/440 Kacheln, 74 mit Daten, 447656 Bäume, 18327 verworfen, 4.8 min
+  210/440 Kacheln, 80 mit Daten, 510733 Bäume, 20478 verworfen, 5.3 min
+  220/440 Kacheln, 87 mit Daten, 521376 Bäume, 20920 verworfen, 5.6 min
+  230/440 Kacheln, 95 mit Daten, 551691 Bäume, 22060 verworfen, 6.1 min
+  240/440 Kacheln, 102 mit Daten, 569916 Bäume, 23030 verworfen, 6.6 min
+  250/440 Kacheln, 108 mit Daten, 573700 Bäume, 23261 verworfen, 6.9 min
+  260/440 Kacheln, 116 mit Daten, 575342 Bäume, 23735 verworfen, 7.4 min
+  270/440 Kacheln, 122 mit Daten, 580499 Bäume, 24525 verworfen, 7.8 min
+  280/440 Kacheln, 131 mit Daten, 611899 Bäume, 27077 verworfen, 8.3 min
+  290/440 Kacheln, 135 mit Daten, 614670 Bäume, 27168 verworfen, 8.6 min
+  300/440 Kacheln, 143 mit Daten, 812236 Bäume, 31195 verworfen, 9.2 min
+  310/440 Kacheln, 147 mit Daten, 814098 Bäume, 31378 verworfen, 9.4 min
+  320/440 Kacheln, 154 mit Daten, 1061586 Bäume, 34304 verworfen, 10.0 min
+  330/440 Kacheln, 158 mit Daten, 1069118 Bäume, 34512 verworfen, 10.2 min
+  340/440 Kacheln, 164 mit Daten, 1356149 Bäume, 38055 verworfen, 10.7 min
+  350/440 Kacheln, 167 mit Daten, 1382038 Bäume, 38290 verworfen, 10.8 min
+  360/440 Kacheln, 174 mit Daten, 1634112 Bäume, 41411 verworfen, 11.4 min
+  370/440 Kacheln, 177 mit Daten, 1640726 Bäume, 41639 verworfen, 11.5 min
