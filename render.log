@@ -1,0 +1,30 @@
+2225825 Bäume >= 50 m, höchster 102.0 m
+  z8: 16 Beschriftungen
+  z9: 114 Beschriftungen
+  z10: 418 Beschriftungen
+  z11: 1609 Beschriftungen
+  z12: 3277 Beschriftungen
+  z13: 3335 Beschriftungen
+  z14: 7888 Beschriftungen
+  z8: 14/14 Kacheln, 0.3 MB, 0.8 min
+  z9: 33/35 Kacheln, 1.4 MB, 1.4 min
+  z10: 94/98 Kacheln, 4.7 MB, 2.0 min
+  z11: 300/310 Kacheln, 14.8 MB, 2.7 min
+  z12: 919/963 Kacheln, 43.5 MB, 3.9 min
+  z13: 2799/2947 Kacheln, 108.2 MB, 7.3 min
+  z14: 8657/9146 Kacheln, 249.1 MB, 23.4 min
+fertig: 12816 Kacheln, 260.6 MB
+Vorschau z9/462/320 (69 kB)
+Vorschau z9/466/321 (64 kB)
+Vorschau z11/1858/1296 (97 kB)
+Vorschau z11/1858/1293 (95 kB)
+Vorschau z13/7431/5185 (143 kB)
+Vorschau z13/7428/5162 (141 kB)
+Vorschau z14/14865/10370 (162 kB)
+Vorschau z14/14854/10334 (153 kB)
+total 254940
+-rw-r--r-- 1 runner runner     16609 Oct 29 09:14 tasmanien-riesenbaeume-50m-legende.png
+-rw-r--r-- 1 runner runner 260575232 Oct 29 09:14 tasmanien-riesenbaeume-50m.mbtiles
+-rw-r--r-- 1 runner runner     13213 Oct 29 08:51 tasmanien_gruppen_ab_80m.csv
+-rw-r--r-- 1 runner runner    439389 Oct 29 08:51 tasmanien_gruppen_ab_80m.geojson
+-rw-r--r-- 1 runner runner      1479 Oct 29 08:51 tasmanien_gruppen_ab_80m_verdaechtig.csv
