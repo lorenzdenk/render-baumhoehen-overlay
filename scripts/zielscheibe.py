@@ -242,6 +242,8 @@ def main():
     ap.add_argument("--font-group", type=int, default=13, help="Schrift Gruppenbeschriftung (z14: +1)")
     ap.add_argument("--font-tree", type=int, default=11, help="Schrift Einzelbäume (z14)")
     ap.add_argument("--dot-scale", type=float, default=1.0, help="Faktor für die Grösse der Baumpunkte")
+    ap.add_argument("--shard", type=int, default=0, help="nur jede shards-te Kachel ab Nummer shard (Verteilung)")
+    ap.add_argument("--shards", type=int, default=1)
     ap.add_argument("--title", default="Riesenbäume")
     ap.add_argument("--attribution", default="")
     ap.add_argument("--description", default="Bäume ab 50 m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand")
@@ -300,7 +302,7 @@ def main():
                 for gx in (lx - 4, lx + 12 * len(txt)):
                     for gy in (ly - 4, ly + 22):
                         tiles.add((int(gx // TILE), int(gy // TILE)))
-            jobs = [(z, tx, ty, a.quality) for tx, ty in sorted(tiles)]
+            jobs = [(z, tx, ty, a.quality) for k, (tx, ty) in enumerate(sorted(tiles)) if k % a.shards == a.shard]
             got = 0
             for zz, tx, ty, data in pool.imap_unordered(render, jobs, chunksize=16):
                 if data:

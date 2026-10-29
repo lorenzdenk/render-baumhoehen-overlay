@@ -1,62 +1,107 @@
 name: BW giant trees (target style)
-# Zielscheiben-Overlay der Bäume ab MIN m in BW aus den Kandidaten der Baumsuche (Release bw-data).
+# Zielscheiben-Overlay der Bäume ab MIN m in BW aus den Kandidaten der Baumsuche (Release bw-data),
+# verteilt auf SHARDS Rechner (jede SHARDS-te Kachel), danach zusammengeführt.
 on:
   workflow_dispatch:
     inputs:
-      min: {description: "Mindesthöhe (m)", default: "50"}
+      min: {description: "Mindesthöhe (m)", default: "45"}
       scale_max: {description: "Höhe für das dunkelste Violett (m)", default: "70"}
-      tree_label_min: {description: "z14: Einzelbäume beschriften ab (m)", default: "60"}
+      tree_label_min: {description: "z14+: Einzelbäume beschriften ab (m)", default: "50"}
       font_group: {description: "Schrift Gruppen (px)", default: "26"}
       font_tree: {description: "Schrift Einzelbäume (px)", default: "20"}
       dot_scale: {description: "Faktor Grösse der Baumpunkte", default: "2"}
-      maxzoom: {description: "höchste Zoomstufe", default: "14"}
-      cand: {description: "Kandidatendateien im Release bw-data (Präfix)", default: "cand_"}
+      maxzoom: {description: "höchste Zoomstufe", default: "15"}
+      cand: {description: "Kandidatendateien im Release bw-data (Präfix)", default: "cand40_"}
+      shards: {description: "Anzahl Render-Rechner", default: "4"}
 permissions:
   contents: write
 env:
   NAME: bw-riesenbaeume
   TAG: riesenbaeume-bw
 jobs:
+  trees:
+    runs-on: ubuntu-24.04
+    outputs:
+      shards: ${{ steps.s.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: s
+        run: echo "shards=$(python3 -c "print(list(range(${{ github.event.inputs.shards }})))")" >> "$GITHUB_OUTPUT"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-numpy python3-scipy
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p cand logs
+          gh release download bw-data -p '${{ github.event.inputs.cand }}*.csv.gz' -D cand -R "$GITHUB_REPOSITORY" --clobber
+          gunzip -f cand/*.gz
+          python3 scripts/bw_trees.py trees.csv cand/*.csv --min ${{ github.event.inputs.min }} 2>&1 | tee logs/trees.log
+      - uses: actions/upload-artifact@v4
+        with: {name: trees, path: "trees.csv", retention-days: 3}
   render:
+    needs: trees
     runs-on: ubuntu-24.04
     timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.trees.outputs.shards) }}
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-numpy python3-scipy python3-pil fonts-dejavu-core
-      - name: Trees
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p cand logs out
-          gh release download bw-data -p '${{ github.event.inputs.cand }}*.csv.gz' -D cand -R "$GITHUB_REPOSITORY" --clobber
-          gunzip -f cand/*.gz
-          python3 scripts/bw_trees.py out/bw_baeume_ab_${{ github.event.inputs.min }}m.csv cand/*.csv --min ${{ github.event.inputs.min }} 2>&1 | tee logs/trees.log
+      - uses: actions/download-artifact@v4
+        with: {name: trees}
       - name: Render
         run: |
+          mkdir -p logs
           set -o pipefail
           M=${{ github.event.inputs.min }}
-          python3 scripts/zielscheibe.py out/bw_baeume_ab_${M}m.csv out/$NAME.mbtiles --min $M --max 72 \
+          python3 scripts/zielscheibe.py trees.csv part${{ matrix.shard }}.mbtiles --min $M --max 72 \
             --scale-max ${{ github.event.inputs.scale_max }} --tree-label-min ${{ github.event.inputs.tree_label_min }} \
             --minzoom 8 --maxzoom ${{ github.event.inputs.maxzoom }} --font-group ${{ github.event.inputs.font_group }} \
             --font-tree ${{ github.event.inputs.font_tree }} --dot-scale ${{ github.event.inputs.dot_scale }} \
+            --shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards }} \
             --title "Riesenbäume Baden-Württemberg (ab $M m)" \
             --description "Bäume ab $M m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand" \
             --attribution "Baumhöhe: nDOM1, DOM1, DGM1 – Datenquelle LGL, www.lgl-bw.de, dl-de/by-2-0, Daten geändert; Filter © OpenStreetMap-Mitwirkende" \
-            2>&1 | tee logs/render.log
+            2>&1 | tee logs/render${{ matrix.shard }}.log
+      - uses: actions/upload-artifact@v4
+        with: {name: "part${{ matrix.shard }}", path: "part${{ matrix.shard }}.mbtiles", retention-days: 3}
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "bw-ziel render ${{ matrix.shard }} ${{ job.status }}" bw-ziel-logs-${{ matrix.shard }}
+  finish:
+    needs: render
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-scipy python3-pil fonts-dejavu-core
+      - uses: actions/download-artifact@v4
+        with: {path: parts, merge-multiple: true}
+      - name: Merge
+        run: |
+          mkdir -p out logs
+          M=${{ github.event.inputs.min }}
+          python3 scripts/baumhoehe.py pack out/$NAME parts/part*.mbtiles 2>&1 | tee logs/finish.log
+          cp parts/trees.csv out/bw_baeume_ab_${M}m.csv
           python3 scripts/zielscheibe.py legend out/$NAME-legende.png $M ${{ github.event.inputs.scale_max }} ${{ github.event.inputs.tree_label_min }}
           cp out/$NAME-legende.png logs/
-          python3 scripts/preview.py out/$NAME.mbtiles logs 9 11 13 14 2>&1 | tee -a logs/render.log || true
-          ls -l out | tee -a logs/render.log
+          f=$(ls out/*.mbtiles | head -1)
+          python3 scripts/preview.py "$f" logs 9 11 13 15 2>&1 | tee -a logs/finish.log || true
+          ls -l out | tee -a logs/finish.log
       - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view $TAG -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create $TAG -R "$GITHUB_REPOSITORY" \
-            -t "Riesenbäume Baden-Württemberg (Zielscheiben-Overlay)" -n "Bäume ab ${{ github.event.inputs.min }} m in BW, Höhe per Laser (DOM1 − DGM1) nachgemessen, Ringe in 100/250/500 m, 512-px-WebP.
+            -t "Riesenbäume Baden-Württemberg (Zielscheiben-Overlay)" -n "Bäume in BW, Höhe per Laser (DOM1 − DGM1) nachgemessen, Ringe in 100/250/500 m, 512-px-WebP.
           Quelle: nDOM1, DOM1, DGM1 – Datenquelle LGL, www.lgl-bw.de, dl-de/by-2-0, Daten geändert. Masten, Türme, Brücken, Leitungen nach OSM und Form entfernt (© OpenStreetMap-Mitwirkende)."
+          for a in $(gh release view $TAG -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -E '^bw-riesenbaeume.*\.mbtiles$|^bw_baeume_ab_'); do
+            gh release delete-asset $TAG "$a" -R "$GITHUB_REPOSITORY" -y; done
           gh release upload $TAG out/* -R "$GITHUB_REPOSITORY" --clobber
       - name: Publish log
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/push_logs.sh logs "bw-ziel ${{ github.run_id }} ${{ job.status }}" bw-ziel-logs
+        run: bash scripts/push_logs.sh logs "bw-ziel finish ${{ github.run_id }} ${{ job.status }}" bw-ziel-logs
