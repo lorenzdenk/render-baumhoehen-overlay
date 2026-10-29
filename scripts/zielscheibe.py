@@ -46,8 +46,8 @@ TREE_LABEL_MIN = 70    # ab z14 einzelne Bäume beschriften
 
 def hcol(h):
     # Farbskala von FS["smin"] bis 100 m auf die Stufen 50..100 m gestreckt (smin bekommt das Gelb von 50 m)
-    smin = FS.get("smin", 50)
-    h = 50 + (h - smin) * 50.0 / (100 - smin)
+    smin, smax = FS.get("smin", 50), FS.get("smax", 100)
+    h = 50 + (h - smin) * 50.0 / (smax - smin)
     xs = [s[0] for s in STOPS]
     return tuple(int(np.interp(h, xs, [s[1][c] for s in STOPS])) for c in range(3))
 
@@ -137,7 +137,7 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
     if z >= 14:
         idx = np.argsort(-H)
         for i in idx:
-            if H[i] < TREE_LABEL_MIN:
+            if H[i] < FS.get("tlabel", TREE_LABEL_MIN):
                 break
             txt = f"{H[i]:.0f}"
             bb = dummy.textbbox((0, 0), txt, font=fonts, stroke_width=2)
@@ -235,6 +235,8 @@ def main():
     ap.add_argument("trees"); ap.add_argument("out")
     ap.add_argument("--min", type=float, default=50)
     ap.add_argument("--max", type=float, default=102, help="höher = Messfehler (höchster bekannter Baum Tasmaniens: 100,5 m)")
+    ap.add_argument("--scale-max", type=float, default=100, help="Höhe, die das dunkelste Violett bekommt")
+    ap.add_argument("--tree-label-min", type=float, default=TREE_LABEL_MIN, help="ab z14 Einzelbäume ab dieser Höhe beschriften")
     ap.add_argument("--minzoom", type=int, default=8); ap.add_argument("--maxzoom", type=int, default=14)
     ap.add_argument("--quality", type=int, default=85)
     ap.add_argument("--font-group", type=int, default=13, help="Schrift Gruppenbeschriftung (z14: +1)")
@@ -244,7 +246,8 @@ def main():
     ap.add_argument("--attribution", default="")
     ap.add_argument("--description", default="Bäume ab 50 m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand")
     a = ap.parse_args()
-    FS.update(group=a.font_group, group14=a.font_group + 1, tree=a.font_tree, smin=a.min, dot=a.dot_scale)
+    FS.update(group=a.font_group, group14=a.font_group + 1, tree=a.font_tree, smin=a.min, dot=a.dot_scale, smax=a.scale_max,
+              tlabel=a.tree_label_min)
     lon, lat, h = [], [], []
     with open(a.trees) as f:
         for row in csv.DictReader(f):
@@ -313,8 +316,8 @@ def main():
     print(f"fertig: {total} Kacheln, {os.path.getsize(a.out) / 1e6:.1f} MB", flush=True)
 
 
-def legend(path, hmin=50):
-    FS["smin"] = hmin
+def legend(path, hmin=50, hmax=100, tlabel=TREE_LABEL_MIN):
+    FS["smin"], FS["smax"] = hmin, hmax
     from PIL import Image as I
     W = 960
     im = I.new("RGB", (W, 120), (255, 255, 255))
@@ -322,9 +325,10 @@ def legend(path, hmin=50):
     f = ImageFont.truetype(FONT, 13); fb = ImageFont.truetype(FONTB, 13)
     d.text((10, 6), f"Baum ab {hmin:g} m (Farbe = Höhe):", font=fb, fill=(0, 0, 0))
     for i in range(300):
-        d.line([(10 + i, 28), (10 + i, 46)], fill=hcol(hmin + i / 300 * (100 - hmin)))
-    for v in [hmin] + [t for t in (60, 70, 80, 90, 100) if t > hmin + 3]:
-        x = 10 + (v - hmin) / (100 - hmin) * 299
+        d.line([(10 + i, 28), (10 + i, 46)], fill=hcol(hmin + i / 300 * (hmax - hmin)))
+    step = 10 if hmax - hmin > 30 else 5
+    for v in [hmin] + [t for t in range(int(hmin) // step * step + step, int(hmax) + 1, step) if t > hmin + step / 3]:
+        x = 10 + (v - hmin) / (hmax - hmin) * 299
         d.line([(x, 46), (x, 51)], fill=(0, 0, 0)); d.text((x - 9, 53), f"{v:g}", font=f, fill=(0, 0, 0))
     x = 360
     d.text((x, 6), "Zielscheibe um jede Gruppe:", font=fb, fill=(0, 0, 0))
@@ -335,13 +339,14 @@ def legend(path, hmin=50):
     d.text((x + 90, 30), f"Ringe in 100 m, 250 m und 500 m Abstand zum nächsten Baum ab {hmin:g} m;", font=f, fill=(0, 0, 0))
     d.text((x + 90, 48), "weit herausgezoomt mindestens 7 / 13 / 19 Pixel.", font=f, fill=(0, 0, 0))
     d.text((x + 90, 66), "Beschriftung: Höhe des höchsten Baums der Gruppe,", font=f, fill=(0, 0, 0))
-    d.text((x + 90, 84), "ab Zoom 14 zusätzlich einzelne Bäume ab 70 m.", font=f, fill=(0, 0, 0))
+    d.text((x + 90, 84), f"ab Zoom 14 zusätzlich einzelne Bäume ab {tlabel:g} m.", font=f, fill=(0, 0, 0))
     im.save(path)
 
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) in (3, 4) and sys.argv[1] == "legend":
-        legend(sys.argv[2], float(sys.argv[3]) if len(sys.argv) == 4 else 50)
+    if len(sys.argv) >= 3 and sys.argv[1] == "legend":
+        v = [float(x) for x in sys.argv[3:]]
+        legend(sys.argv[2], *v)
     else:
         main()
