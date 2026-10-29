@@ -45,6 +45,9 @@ TREE_LABEL_MIN = 70    # ab z14 einzelne Bäume beschriften
 
 
 def hcol(h):
+    # Farbskala von FS["smin"] bis 100 m auf die Stufen 50..100 m gestreckt (smin bekommt das Gelb von 50 m)
+    smin = FS.get("smin", 50)
+    h = 50 + (h - smin) * 50.0 / (100 - smin)
     xs = [s[0] for s in STOPS]
     return tuple(int(np.interp(h, xs, [s[1][c] for s in STOPS])) for c in range(3))
 
@@ -239,7 +242,7 @@ def main():
     ap.add_argument("--attribution", default="")
     ap.add_argument("--description", default="Bäume ab 50 m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand")
     a = ap.parse_args()
-    FS.update(group=a.font_group, group14=a.font_group + 1, tree=a.font_tree)
+    FS.update(group=a.font_group, group14=a.font_group + 1, tree=a.font_tree, smin=a.min)
     lon, lat, h = [], [], []
     with open(a.trees) as f:
         for row in csv.DictReader(f):
@@ -309,6 +312,7 @@ def main():
 
 
 def legend(path, hmin=50):
+    FS["smin"] = hmin
     from PIL import Image as I
     W = 960
     im = I.new("RGB", (W, 120), (255, 255, 255))
