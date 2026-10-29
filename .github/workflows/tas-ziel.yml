@@ -3,10 +3,17 @@ name: Tasmania giant trees (target style)
 # Quelle: trees.csv im Release tas-data (aus "Archive Tasmania canopy").
 on:
   workflow_dispatch:
+    inputs:
+      min: {description: "Mindesthöhe (m)", default: "50"}
+      font_group: {description: "Schriftgrösse Gruppen (px)", default: "13"}
+      font_tree: {description: "Schriftgrösse Einzelbäume (px)", default: "11"}
+      suffix: {description: "Zusatz für Release und Dateiname (leer = Standard)", default: ""}
 permissions:
   contents: write
 env:
-  NAME: tasmanien-riesenbaeume
+  NAME: tasmanien-riesenbaeume${{ github.event.inputs.suffix }}
+  TAG: riesenbaeume-tasmanien${{ github.event.inputs.suffix }}
+  HMIN: ${{ github.event.inputs.min || '50' }}
 jobs:
   render:
     runs-on: ubuntu-24.04
@@ -35,11 +42,13 @@ jobs:
       - name: Render
         run: |
           set -o pipefail
-          python3 scripts/zielscheibe.py trees_ok.csv out/$NAME.mbtiles --minzoom 8 --maxzoom 14 \
-            --title "Riesenbäume Tasmanien (ab 50 m)" \
+          python3 scripts/zielscheibe.py trees_ok.csv out/$NAME.mbtiles --minzoom 8 --maxzoom 14 --min $HMIN \
+            --font-group ${{ github.event.inputs.font_group || '13' }} --font-tree ${{ github.event.inputs.font_tree || '11' }} \
+            --description "Bäume ab $HMIN m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand" \
+            --title "Riesenbäume Tasmanien (ab $HMIN m)" \
             --attribution "Baumhöhe: Tree Canopy Height, theLIST © State of Tasmania, CC BY 3.0 AU, Daten geändert; Filter © OpenStreetMap-Mitwirkende" \
             2>&1 | tee logs/render.log
-          python3 scripts/zielscheibe.py legend out/$NAME-legende.png
+          python3 scripts/zielscheibe.py legend out/$NAME-legende.png $HMIN
           cp out/$NAME-legende.png logs/
           python3 scripts/preview.py out/$NAME.mbtiles logs 9 11 13 14 2>&1 | tee -a logs/render.log || true
           ls -l out | tee -a logs/render.log
@@ -47,9 +56,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="riesenbaeume-tasmanien"
           gh release view $TAG -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create $TAG -R "$GITHUB_REPOSITORY" \
-            -t "Riesenbäume Tasmanien (Zielscheiben-Overlay)" -n "Bäume ab 50 m aus theLIST Tree Canopy Height (LiDAR, 2 m; nur Gebiete mit LiDAR), Ringe in 100/250/500 m, Zoom 8–14, 512-px-WebP.
+            -t "Riesenbäume Tasmanien ab $HMIN m (Zielscheiben-Overlay)" -n "Bäume ab $HMIN m aus theLIST Tree Canopy Height (LiDAR, 2 m; nur Gebiete mit LiDAR), Ringe in 100/250/500 m, Zoom 8–14, 512-px-WebP.
           Quelle: theLIST © State of Tasmania, CC BY 3.0 AU, Daten geändert. Gebäude/Türme/Masten nach OSM entfernt (© OpenStreetMap-Mitwirkende).
           Dazu: Liste aller Baumgruppen mit höchstem Baum ab 80 m (CSV, GeoJSON)."
           gh release upload $TAG out/* -R "$GITHUB_REPOSITORY" --clobber

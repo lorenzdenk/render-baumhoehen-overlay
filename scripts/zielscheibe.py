@@ -31,6 +31,7 @@ R = 20037508.342789244
 TILE = 512
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONTB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FS = {"group": 13, "group14": 14, "tree": 11}   # Schriftgrössen (px), über --font-group / --font-tree änderbar
 STOPS = [(50, (255, 225, 0)), (60, (255, 140, 0)), (70, (225, 25, 25)), (80, (200, 0, 150)), (90, (110, 0, 170)),
          (100, (40, 0, 90))]
 RING = (230, 60, 20)
@@ -148,12 +149,14 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
 G = {}
 
 
-def init(X, Y, H, labels_by_zoom):
+def init(X, Y, H, labels_by_zoom, fs=None):
+    if fs:
+        FS.update(fs)
     G["X"], G["Y"], G["H"] = X, Y, H
     G["tree"] = cKDTree(np.c_[X, Y])
     G["labels"] = {z: (np.array([[l[0], l[1]] for l in L]) if L else np.zeros((0, 2)), L) for z, L in labels_by_zoom.items()}
-    G["font"] = {z: ImageFont.truetype(FONTB, 13 if z < 14 else 14) for z in labels_by_zoom}
-    G["fonts"] = ImageFont.truetype(FONT, 11)
+    G["font"] = {z: ImageFont.truetype(FONTB, FS["group"] if z < 14 else FS["group14"]) for z in labels_by_zoom}
+    G["fonts"] = ImageFont.truetype(FONT, FS["tree"])
 
 
 def render(args):
@@ -230,10 +233,13 @@ def main():
     ap.add_argument("--max", type=float, default=102, help="höher = Messfehler (höchster bekannter Baum Tasmaniens: 100,5 m)")
     ap.add_argument("--minzoom", type=int, default=8); ap.add_argument("--maxzoom", type=int, default=14)
     ap.add_argument("--quality", type=int, default=85)
+    ap.add_argument("--font-group", type=int, default=13, help="Schrift Gruppenbeschriftung (z14: +1)")
+    ap.add_argument("--font-tree", type=int, default=11, help="Schrift Einzelbäume (z14)")
     ap.add_argument("--title", default="Riesenbäume")
     ap.add_argument("--attribution", default="")
     ap.add_argument("--description", default="Bäume ab 50 m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand")
     a = ap.parse_args()
+    FS.update(group=a.font_group, group14=a.font_group + 1, tree=a.font_tree)
     lon, lat, h = [], [], []
     with open(a.trees) as f:
         for row in csv.DictReader(f):
@@ -246,8 +252,8 @@ def main():
     t0 = time.time()
     labels = {}
     for z in range(a.minzoom, a.maxzoom + 1):
-        labels[z] = place_labels(X, Y, H, lat0, z, ImageFont.truetype(FONTB, 13 if z < 14 else 14),
-                                 ImageFont.truetype(FONT, 11))
+        labels[z] = place_labels(X, Y, H, lat0, z, ImageFont.truetype(FONTB, FS["group"] if z < 14 else FS["group14"]),
+                                 ImageFont.truetype(FONT, FS["tree"]))
         print(f"  z{z}: {len(labels[z])} Beschriftungen", flush=True)
     if os.path.exists(a.out):
         os.remove(a.out)
@@ -269,7 +275,7 @@ def main():
             "tile_size": str(TILE), "scale": "2"}
     db.executemany("INSERT INTO metadata VALUES (?, ?)", meta.items())
     total = size = 0
-    with Pool(os.cpu_count(), initializer=init, initargs=(X, Y, H, labels)) as pool:
+    with Pool(os.cpu_count(), initializer=init, initargs=(X, Y, H, labels, dict(FS))) as pool:
         for z in range(a.minzoom, a.maxzoom + 1):
             r = res(z)
             rad, _ = radii_px(z, lat0)
@@ -302,25 +308,25 @@ def main():
     print(f"fertig: {total} Kacheln, {os.path.getsize(a.out) / 1e6:.1f} MB", flush=True)
 
 
-def legend(path):
+def legend(path, hmin=50):
     from PIL import Image as I
     W = 960
     im = I.new("RGB", (W, 120), (255, 255, 255))
     d = ImageDraw.Draw(im)
     f = ImageFont.truetype(FONT, 13); fb = ImageFont.truetype(FONTB, 13)
-    d.text((10, 6), "Baum ab 50 m (Farbe = Höhe):", font=fb, fill=(0, 0, 0))
+    d.text((10, 6), f"Baum ab {hmin:g} m (Farbe = Höhe):", font=fb, fill=(0, 0, 0))
     for i in range(300):
-        d.line([(10 + i, 28), (10 + i, 46)], fill=hcol(50 + i / 300 * 50))
-    for v in (50, 60, 70, 80, 90, 100):
-        x = 10 + (v - 50) / 50 * 299
-        d.line([(x, 46), (x, 51)], fill=(0, 0, 0)); d.text((x - 9, 53), f"{v}", font=f, fill=(0, 0, 0))
+        d.line([(10 + i, 28), (10 + i, 46)], fill=hcol(hmin + i / 300 * (100 - hmin)))
+    for v in [hmin] + [t for t in (60, 70, 80, 90, 100) if t > hmin + 3]:
+        x = 10 + (v - hmin) / (100 - hmin) * 299
+        d.line([(x, 46), (x, 51)], fill=(0, 0, 0)); d.text((x - 9, 53), f"{v:g}", font=f, fill=(0, 0, 0))
     x = 360
     d.text((x, 6), "Zielscheibe um jede Gruppe:", font=fb, fill=(0, 0, 0))
     cx, cy = x + 40, 70
     for r, w in ((38, 2), (26, 2), (14, 3)):
         d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=RING, width=w)
     d.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=hcol(80), outline=(40, 20, 20))
-    d.text((x + 90, 30), "Ringe in 100 m, 250 m und 500 m Abstand zum nächsten Baum ab 50 m;", font=f, fill=(0, 0, 0))
+    d.text((x + 90, 30), f"Ringe in 100 m, 250 m und 500 m Abstand zum nächsten Baum ab {hmin:g} m;", font=f, fill=(0, 0, 0))
     d.text((x + 90, 48), "weit herausgezoomt mindestens 7 / 13 / 19 Pixel.", font=f, fill=(0, 0, 0))
     d.text((x + 90, 66), "Beschriftung: Höhe des höchsten Baums der Gruppe,", font=f, fill=(0, 0, 0))
     d.text((x + 90, 84), "ab Zoom 14 zusätzlich einzelne Bäume ab 70 m.", font=f, fill=(0, 0, 0))
@@ -329,7 +335,7 @@ def legend(path):
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) == 3 and sys.argv[1] == "legend":
-        legend(sys.argv[2])
+    if len(sys.argv) in (3, 4) and sys.argv[1] == "legend":
+        legend(sys.argv[2], float(sys.argv[3]) if len(sys.argv) == 4 else 50)
     else:
         main()
