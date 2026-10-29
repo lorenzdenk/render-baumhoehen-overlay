@@ -1,0 +1,13 @@
+out/bw-riesenbaeume.mbtiles: 31801 Kacheln, 31781 verschiedene, z8-15, 289.1 MB
+Vorschau z9/268/177 (78 kB)
+Vorschau z9/269/175 (78 kB)
+Vorschau z11/1070/707 (91 kB)
+Vorschau z11/1071/708 (89 kB)
+Vorschau z13/4275/2847 (84 kB)
+Vorschau z13/4271/2853 (77 kB)
+Vorschau z15/17102/11390 (78 kB)
+Vorschau z15/17101/11390 (76 kB)
+total 291196
+-rw-r--r-- 1 runner runner     16488 Oct 29 19:44 bw-riesenbaeume-legende.png
+-rw-r--r-- 1 runner runner 289050624 Oct 29 19:44 bw-riesenbaeume.mbtiles
+-rw-r--r-- 1 runner runner   9112931 Oct 29 19:44 bw_baeume_ab_45m.csv
