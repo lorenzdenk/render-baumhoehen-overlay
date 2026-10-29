@@ -7,6 +7,7 @@ on:
       min: {description: "Mindesthöhe (m)", default: "50"}
       font_group: {description: "Schriftgrösse Gruppen (px)", default: "13"}
       font_tree: {description: "Schriftgrösse Einzelbäume (px)", default: "11"}
+      dot_scale: {description: "Faktor Grösse der Baumpunkte", default: "1"}
       maxzoom: {description: "höchste Zoomstufe", default: "14"}
       suffix: {description: "Zusatz für Release und Dateiname (leer = Standard)", default: ""}
 permissions:
@@ -44,14 +45,14 @@ jobs:
         run: |
           set -o pipefail
           python3 scripts/zielscheibe.py trees_ok.csv out/$NAME.mbtiles --minzoom 8 --maxzoom ${{ github.event.inputs.maxzoom || '14' }} --min $HMIN \
-            --font-group ${{ github.event.inputs.font_group || '13' }} --font-tree ${{ github.event.inputs.font_tree || '11' }} \
+            --font-group ${{ github.event.inputs.font_group || '13' }} --font-tree ${{ github.event.inputs.font_tree || '11' }} --dot-scale ${{ github.event.inputs.dot_scale || '1' }} \
             --description "Bäume ab $HMIN m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand" \
             --title "Riesenbäume Tasmanien (ab $HMIN m)" \
             --attribution "Baumhöhe: Tree Canopy Height, theLIST © State of Tasmania, CC BY 3.0 AU, Daten geändert; Filter © OpenStreetMap-Mitwirkende" \
             2>&1 | tee logs/render.log
           python3 scripts/zielscheibe.py legend out/$NAME-legende.png $HMIN
           cp out/$NAME-legende.png logs/
-          python3 scripts/preview.py out/$NAME.mbtiles logs 9 11 13 15 2>&1 | tee -a logs/render.log || true
+          python3 scripts/preview.py out/$NAME.mbtiles logs 9 11 13 14 2>&1 | tee -a logs/render.log || true
           ls -l out | tee -a logs/render.log
       - name: Release
         env:

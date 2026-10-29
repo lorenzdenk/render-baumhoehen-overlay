@@ -141,7 +141,7 @@ def place_labels(X, Y, H, lat0, z, font, fonts):
                 break
             txt = f"{H[i]:.0f}"
             bb = dummy.textbbox((0, 0), txt, font=fonts, stroke_width=2)
-            px, py = gx[i] + 6, gy[i] - 6
+            px, py = gx[i] + 6 * FS.get("dot", 1.0), gy[i] - 6 * FS.get("dot", 1.0)
             b = (px - 12, py - 12, px + bb[2] + 12, py + bb[3] + 12)   # Abstand zwischen Beschriftungen
             if free(b):
                 boxes.add(b); out.append((px, py, txt, "tree"))
@@ -209,7 +209,8 @@ def render(args):
     for i in order[np.argsort(H[order])]:
         a, b = px[i], py[i]
         if -10 <= a < S + 10 and -10 <= b < S + 10:
-            d.ellipse([a - cr, b - cr, a + cr, b + cr], fill=hcol(H[i]) + (255,), outline=(40, 20, 20, 255), width=1)
+            dr = cr * FS.get("dot", 1.0)   # gezeichneter Punkt; die Ringe bleiben aus der ursprünglichen Grösse berechnet
+            d.ellipse([a - dr, b - dr, a + dr, b + dr], fill=hcol(H[i]) + (255,), outline=(40, 20, 20, 255), width=1)
     pts, L = G["labels"][z]
     if len(pts):
         sel = np.nonzero((pts[:, 0] > ox - 200) & (pts[:, 0] < ox + S) & (pts[:, 1] > oy - 40) & (pts[:, 1] < oy + S))[0]
@@ -238,11 +239,12 @@ def main():
     ap.add_argument("--quality", type=int, default=85)
     ap.add_argument("--font-group", type=int, default=13, help="Schrift Gruppenbeschriftung (z14: +1)")
     ap.add_argument("--font-tree", type=int, default=11, help="Schrift Einzelbäume (z14)")
+    ap.add_argument("--dot-scale", type=float, default=1.0, help="Faktor für die Grösse der Baumpunkte")
     ap.add_argument("--title", default="Riesenbäume")
     ap.add_argument("--attribution", default="")
     ap.add_argument("--description", default="Bäume ab 50 m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand")
     a = ap.parse_args()
-    FS.update(group=a.font_group, group14=a.font_group + 1, tree=a.font_tree, smin=a.min)
+    FS.update(group=a.font_group, group14=a.font_group + 1, tree=a.font_tree, smin=a.min, dot=a.dot_scale)
     lon, lat, h = [], [], []
     with open(a.trees) as f:
         for row in csv.DictReader(f):
