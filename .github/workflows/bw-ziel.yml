@@ -10,6 +10,7 @@ on:
       font_tree: {description: "Schrift Einzelbäume (px)", default: "20"}
       dot_scale: {description: "Faktor Grösse der Baumpunkte", default: "2"}
       maxzoom: {description: "höchste Zoomstufe", default: "14"}
+      cand: {description: "Kandidatendateien im Release bw-data (Präfix)", default: "cand_"}
 permissions:
   contents: write
 env:
@@ -27,7 +28,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p cand logs out
-          gh release download bw-data -p 'cand_*.csv.gz' -D cand -R "$GITHUB_REPOSITORY" --clobber
+          gh release download bw-data -p '${{ github.event.inputs.cand }}*.csv.gz' -D cand -R "$GITHUB_REPOSITORY" --clobber
           gunzip -f cand/*.gz
           python3 scripts/bw_trees.py out/bw_baeume_ab_${{ github.event.inputs.min }}m.csv cand/*.csv --min ${{ github.event.inputs.min }} 2>&1 | tee logs/trees.log
       - name: Render

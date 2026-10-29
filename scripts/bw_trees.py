@@ -20,8 +20,9 @@ nd = np.array([float(r["ndom_m"]) for r in rows])
 li = np.array([float(r["lidar_m"]) if r["lidar_m"] else np.nan for r in rows])
 h = np.where(np.isnan(li), nd, li)
 hmax = np.fmax(nd, np.nan_to_num(li, nan=0))
-sel = np.nonzero(hmax >= a.min - 5)[0]
-par = np.arange(len(sel))
+# Bauwerke: Gruppen (60 m Kette) nur aus hohen Spitzen (>= 50 m) bilden, damit dichte Wälder nicht verketten
+tall = np.nonzero(hmax >= 50)[0]
+par = np.arange(len(tall))
 
 
 def find(i):
@@ -30,26 +31,28 @@ def find(i):
     return i
 
 
-for p, q in cKDTree(xy[sel]).query_pairs(60):
+for p, q in cKDTree(xy[tall]).query_pairs(60):
     rp, rq = find(p), find(q)
     if rp != rq:
         par[max(rp, rq)] = min(rp, rq)
-lab = np.array([find(i) for i in range(len(sel))])
-bad = set()
+lab = np.array([find(i) for i in range(len(tall))])
+badpts = []
+nbad = 0
 for g in np.unique(lab):
-    m = sel[lab == g]
-    if hmax[m].max() > a.max:
-        bad.add(g); continue
-    if len(m) >= 5:
+    m = tall[lab == g]
+    isbad = hmax[m].max() > a.max
+    if not isbad and len(m) >= 5:
         d = xy[m] - xy[m].mean(0)
         ev = np.sort(np.linalg.eigvalsh(np.cov(d.T)))
-        if np.sqrt(ev[1] / max(ev[0], 0.25)) >= 6 and 2 * np.sqrt(ev[1]) >= 30:
-            bad.add(g)
-out, seen = [], cKDTree(np.zeros((0, 2))) if False else None
+        isbad = np.sqrt(ev[1] / max(ev[0], 0.25)) >= 6 and 2 * np.sqrt(ev[1]) >= 30
+    if isbad:
+        nbad += 1
+        badpts.append(xy[m])
+badkd = cKDTree(np.vstack(badpts)) if badpts else None
 keep = []
-for k, i in enumerate(sel):
+for i in np.nonzero(h >= a.min)[0]:
     r = rows[i]
-    if lab[k] in bad or h[i] < a.min:
+    if badkd is not None and badkd.query(xy[i])[0] <= 40:   # im Umkreis von 40 m eines Bauwerks
         continue
     if r["lidar_crown_px"] and int(r["lidar_crown_px"]) >= 29:
         continue
@@ -74,4 +77,4 @@ with open(a.out, "w", newline="") as f:
             w.writerow([r["lon"], r["lat"], round(float(h[i]), 1), r["ndom_m"], r["lidar_m"], r["x"], r["y"]])
 hs = np.array([h[i] for n_, i in enumerate(keep) if n_ not in drop])
 print(f"{len(hs)} Bäume >= {a.min:g} m (>= 55: {(hs >= 55).sum()}, >= 60: {(hs >= 60).sum()}, >= 65: {(hs >= 65).sum()}); "
-      f"{len(bad)} Gruppen als Bauwerk/Leitung verworfen")
+      f"{nbad} Gruppen als Bauwerk/Leitung verworfen")
