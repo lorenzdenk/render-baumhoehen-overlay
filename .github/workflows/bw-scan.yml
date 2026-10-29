@@ -9,6 +9,12 @@ on:
       only:
         description: "nur diese Shards neu rechnen (z.B. 0,7,9), leer = alle"
         default: ""
+      min:
+        description: "nDOM-Mindesthöhe der Spitzen (m)"
+        default: "45"
+      tag:
+        description: "Zusatz für die Kandidatendateien (leer = Standard)"
+        default: ""
       units:
         description: "nur diese 2-km-Einheiten (E_N,...) zum Testen, leer = ganz BW"
         default: ""
@@ -56,14 +62,14 @@ jobs:
           mkdir -p logs
           set -o pipefail
           python3 scripts/bw_scan.py --shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards }} \
-            --mask scanmask.gpkg ${{ github.event.inputs.units && format('--units {0}', github.event.inputs.units) || '' }} --out cand_${{ matrix.shard }}.csv 2>&1 | tee logs/scan${{ matrix.shard }}.log
+            --mask scanmask.gpkg ${{ github.event.inputs.units && format('--units {0}', github.event.inputs.units) || '' }} --min ${{ github.event.inputs.min || '45' }} --out cand${{ github.event.inputs.tag }}_${{ matrix.shard }}.csv 2>&1 | tee logs/scan${{ matrix.shard }}.log
       - name: Upload candidates
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gzip -kf cand_${{ matrix.shard }}.csv
-          gh release upload bw-data cand_${{ matrix.shard }}.csv.gz -R "$GITHUB_REPOSITORY" --clobber
+          gzip -kf cand${{ github.event.inputs.tag }}_${{ matrix.shard }}.csv
+          gh release upload bw-data cand${{ github.event.inputs.tag }}_${{ matrix.shard }}.csv.gz -R "$GITHUB_REPOSITORY" --clobber
       - name: Publish log
         if: always()
         env:
