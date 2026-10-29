@@ -1,0 +1,40 @@
+Shard 7/16: 904 Einheiten
+  25/904 Einheiten, 5 mit Daten, 332 Spitzen, 1.0 min
+  50/904 Einheiten, 14 mit Daten, 1214 Spitzen, 2.0 min
+  75/904 Einheiten, 32 mit Daten, 5188 Spitzen, 4.4 min
+  100/904 Einheiten, 52 mit Daten, 8596 Spitzen, 7.8 min
+  125/904 Einheiten, 73 mit Daten, 15697 Spitzen, 11.1 min
+  150/904 Einheiten, 94 mit Daten, 19031 Spitzen, 14.0 min
+  175/904 Einheiten, 115 mit Daten, 22784 Spitzen, 16.3 min
+  200/904 Einheiten, 136 mit Daten, 27166 Spitzen, 18.6 min
+  225/904 Einheiten, 158 mit Daten, 28531 Spitzen, 21.3 min
+  250/904 Einheiten, 179 mit Daten, 32045 Spitzen, 23.8 min
+  275/904 Einheiten, 197 mit Daten, 34829 Spitzen, 26.0 min
+  300/904 Einheiten, 218 mit Daten, 38087 Spitzen, 29.1 min
+  325/904 Einheiten, 239 mit Daten, 41891 Spitzen, 30.7 min
+  350/904 Einheiten, 258 mit Daten, 49512 Spitzen, 33.4 min
+Warning 1: gdalbuildvrt does not support heterogeneous projection: expected ETRS89 / UTM zone 32N, got (null). Skipping /home/runner/work/render-baumhoehen-overlay/render-baumhoehen-overlay/scanwork/429_5362_dom/dom1_32_429_5363_1_bw_2019.tif
+  375/904 Einheiten, 276 mit Daten, 54094 Spitzen, 35.3 min
+  400/904 Einheiten, 298 mit Daten, 54453 Spitzen, 37.2 min
+  425/904 Einheiten, 318 mit Daten, 56492 Spitzen, 39.4 min
+  450/904 Einheiten, 337 mit Daten, 57723 Spitzen, 41.3 min
+  475/904 Einheiten, 357 mit Daten, 59640 Spitzen, 43.7 min
+  500/904 Einheiten, 378 mit Daten, 60852 Spitzen, 45.9 min
+  525/904 Einheiten, 395 mit Daten, 62429 Spitzen, 47.9 min
+  550/904 Einheiten, 417 mit Daten, 64459 Spitzen, 50.7 min
+  575/904 Einheiten, 435 mit Daten, 67966 Spitzen, 53.1 min
+  600/904 Einheiten, 454 mit Daten, 69400 Spitzen, 54.8 min
+  625/904 Einheiten, 470 mit Daten, 71089 Spitzen, 56.6 min
+  650/904 Einheiten, 485 mit Daten, 72098 Spitzen, 58.1 min
+  675/904 Einheiten, 499 mit Daten, 72288 Spitzen, 59.2 min
+  700/904 Einheiten, 513 mit Daten, 74528 Spitzen, 61.0 min
+  725/904 Einheiten, 524 mit Daten, 75302 Spitzen, 62.3 min
+  750/904 Einheiten, 538 mit Daten, 77524 Spitzen, 63.6 min
+  775/904 Einheiten, 553 mit Daten, 78927 Spitzen, 65.3 min
+  800/904 Einheiten, 565 mit Daten, 79511 Spitzen, 66.3 min
+  825/904 Einheiten, 576 mit Daten, 80715 Spitzen, 67.6 min
+  850/904 Einheiten, 580 mit Daten, 81003 Spitzen, 67.7 min
+  875/904 Einheiten, 584 mit Daten, 81133 Spitzen, 68.0 min
+  900/904 Einheiten, 587 mit Daten, 81374 Spitzen, 68.7 min
+  904/904 Einheiten, 587 mit Daten, 81374 Spitzen, 68.7 min
+Maximum je Einheit (m: Anzahl): {40: 26, 41: 32, 42: 36, 43: 36, 44: 41, 45: 25, 46: 39, 47: 40, 48: 38, 49: 23, 50: 19, 51: 24, 52: 25, 53: 16, 54: 25, 55: 49, 57: 1, 69: 1, 83: 1, 129: 1}
