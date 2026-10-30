@@ -1,0 +1,64 @@
+name: Archive Swiss vegetation height
+# Einmalig: Vegetationshöhenmodell LiDAR LFI (BAFU/WSL, aus swissSURFACE3D; Open use, Quelle angeben) für ein Gebiet
+# per HTTP-Range aus den landesweiten COGs (je Befliegungsjahr) lesen, je Pixel neuester Jahrgang, 1 m (Maximum aus
+# 0,5 m), als Byte-Kacheln (Höhe*2) im Release "ch-vhm-<name>" ablegen und die Baumspitzen-Liste erzeugen.
+on:
+  workflow_dispatch:
+    inputs:
+      name: {description: "Name des Gebiets", default: "thurgau"}
+      bbox: {description: "W,S,E,N in Grad", default: "8.65,47.36,9.52,47.71"}
+      years: {description: "Jahrgänge", default: "2017 2018 2019 2020 2021 2022 2023 2024 2025"}
+permissions:
+  contents: write
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy python3-scipy
+      - name: Download and archive
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GDAL_HTTP_MULTIRANGE: "YES"
+          GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
+          GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+          CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif"
+          GDAL_CACHEMAX: "1024"
+        run: |
+          mkdir -p logs yr
+          (while sleep 120; do bash scripts/push_logs.sh logs "läuft ${{ github.run_id }}" ch-archive-logs >/dev/null 2>&1; done) &
+          exec > >(tee logs/archive.log) 2>&1
+          IFS=, read W S E N <<< "${{ github.event.inputs.bbox }}"
+          B=https://data.geo.admin.ch/ch.bafu.landesforstinventar-vegetationshoehenmodell_lidar
+          gdalinfo /vsicurl/$B/landesforstinventar-vegetationshoehenmodell_lidar_2024/landesforstinventar-vegetationshoehenmodell_lidar_2024_2056.tif | grep -vE '^\s+[0-9.-]+,' | head -40
+          args=""
+          for y in ${{ github.event.inputs.years }}; do
+            u=/vsicurl/$B/landesforstinventar-vegetationshoehenmodell_lidar_$y/landesforstinventar-vegetationshoehenmodell_lidar_${y}_2056.tif
+            echo "== $y"; date
+            # volle Auflösung lesen (-ovr NONE) und auf 1 m mit Maximum verkleinern: keine Baumspitze geht verloren
+            gdalwarp -q -ovr NONE -te_srs EPSG:4326 -te $W $S $E $N -t_srs EPSG:2056 -tr 1 1 -tap -r max \
+              -wo NUM_THREADS=ALL_CPUS -co COMPRESS=DEFLATE -co PREDICTOR=3 -co TILED=YES -co BIGTIFF=YES "$u" yr/$y.tif \
+              && args="$args $y:yr/$y.tif" || echo "Jahrgang $y fehlt"
+            ls -l yr/$y.tif 2>/dev/null
+          done
+          python3 scripts/ch_mosaic.py vhm_1m.tif vhm_jahr.tif $args
+          rm -rf yr
+          python3 scripts/chm_archive.py vhm_1m.tif arch --tile-km 10 --min-tree 45
+          ls arch/tiles | wc -l; du -sh arch/tiles
+          cp arch/index.csv logs/
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          T=ch-vhm-${{ github.event.inputs.name }}
+          gh release view $T -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create $T -R "$GITHUB_REPOSITORY" \
+            --latest=false -t "Schweiz: Vegetationshöhe ${{ github.event.inputs.name }} (Archiv)" \
+            -n "Vegetationshöhenmodell LiDAR LFI (BAFU/WSL, Landesforstinventar; aus swissSURFACE3D von swisstopo), Open use, Quelle angeben. Je Pixel neuester Jahrgang, 1 m (Maximum aus 0,5 m). Byte-Kacheln 10 x 10 km, Wert = Höhe * 2, 255 = keine Daten. trees.csv = Baumspitzen ab 45 m, vhm_jahr.tif = Befliegungsjahr - 2000."
+          gh release upload $T arch/index.csv arch/trees.csv vhm_jahr.tif -R "$GITHUB_REPOSITORY" --clobber
+          ls arch/tiles/*.tif | xargs -n 25 gh release upload $T -R "$GITHUB_REPOSITORY" --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "ch-archive ${{ github.run_id }} ${{ job.status }}" ch-archive-logs

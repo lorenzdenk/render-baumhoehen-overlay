@@ -1,0 +1,122 @@
+name: Swiss giant trees (target style)
+# Zielscheiben-Overlay aus dem Archiv "ch-vhm-<name>" (Workflow "Archive Swiss vegetation height").
+# Lädt nur die Baumliste (und für die Formprüfung die Archivkacheln mit hohen Bäumen), nicht die Rohdaten.
+on:
+  workflow_dispatch:
+    inputs:
+      name: {description: "Gebiet (wie beim Archiv)", default: "thurgau"}
+      min: {description: "Mindesthöhe (m)", default: "45"}
+      scale_max: {description: "Höhe für das dunkelste Violett (m)", default: "70"}
+      tree_label_min: {description: "z14+: Einzelbäume beschriften ab (m)", default: "50"}
+      font_group: {description: "Schrift Gruppen (px)", default: "26"}
+      font_tree: {description: "Schrift Einzelbäume (px)", default: "20"}
+      dot_scale: {description: "Faktor Grösse der Baumpunkte", default: "2"}
+      maxzoom: {description: "höchste Zoomstufe", default: "15"}
+      shards: {description: "Anzahl Render-Rechner", default: "4"}
+permissions:
+  contents: write
+env:
+  NAME: ${{ github.event.inputs.name }}-riesenbaeume
+  TAG: riesenbaeume-${{ github.event.inputs.name }}
+  SRC: ch-vhm-${{ github.event.inputs.name }}
+  ATTR: "Baumhöhe: Vegetationshöhenmodell LiDAR LFI, BAFU/WSL (Landesforstinventar), Grundlage swissSURFACE3D © swisstopo, Daten geändert; Filter © OpenStreetMap-Mitwirkende"
+jobs:
+  trees:
+    runs-on: ubuntu-24.04
+    outputs:
+      shards: ${{ steps.s.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: s
+        run: echo "shards=$(python3 -c "print(list(range(${{ github.event.inputs.shards }})))")" >> "$GITHUB_OUTPUT"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy python3-scipy osmium-tool
+      - name: Trees and filters
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          gh release download $SRC -p trees.csv -p index.csv -R "$GITHUB_REPOSITORY" --clobber
+          BB=$(python3 -c "
+          import csv; from osgeo import osr
+          s=osr.SpatialReference(); s.ImportFromEPSG(2056); s.SetAxisMappingStrategy(0)
+          t=osr.SpatialReference(); t.ImportFromEPSG(4326); t.SetAxisMappingStrategy(0)
+          tr=osr.CoordinateTransformation(s,t); r=list(csv.DictReader(open('index.csv')))
+          xs=[float(x['minx']) for x in r]+[float(x['maxx']) for x in r]; ys=[float(x['miny']) for x in r]+[float(x['maxy']) for x in r]
+          a=tr.TransformPoint(min(xs),min(ys)); b=tr.TransformPoint(max(xs),max(ys)); print(f'{a[0]-0.02},{a[1]-0.02},{b[0]+0.02},{b[1]+0.02}')")
+          echo "bbox $BB"
+          curl -fsSL -o ch.osm.pbf https://download.geofabrik.de/europe/switzerland-latest.osm.pbf
+          osmium extract -b "$BB" ch.osm.pbf -o cut.osm.pbf --overwrite
+          bash scripts/prepare_scanmask.sh cut.osm.pbf mask.gpkg 2056 2>&1 | tee logs/mask.log
+          python3 scripts/filter_trees.py trees.csv mask.gpkg trees_osm.csv trees_osm_removed.csv 2>&1 | tee logs/filter.log
+          python3 scripts/verify_tall.py trees_osm.csv https://github.com/${{ github.repository }}/releases/download/$SRC/index.csv \
+            trees_ok.csv trees_shape_removed.csv --min 50 2>&1 | tee logs/verify.log
+          python3 - <<'PY' | tee -a logs/verify.log
+          import csv
+          h=[float(r['height_m']) for r in csv.DictReader(open('trees_ok.csv'))]
+          for t in (45,50,55,60,65,70): print(t, sum(v>=t for v in h))
+          PY
+      - uses: actions/upload-artifact@v4
+        with: {name: trees, path: "trees_ok.csv", retention-days: 3}
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "ch-ziel trees ${{ github.run_id }} ${{ job.status }}" ch-ziel-logs-trees
+  render:
+    needs: trees
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.trees.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-numpy python3-scipy python3-pil fonts-dejavu-core
+      - uses: actions/download-artifact@v4
+        with: {name: trees}
+      - name: Render
+        run: |
+          M=${{ github.event.inputs.min }}
+          python3 scripts/zielscheibe.py trees_ok.csv part${{ matrix.shard }}.mbtiles --min $M --max 72 \
+            --scale-max ${{ github.event.inputs.scale_max }} --tree-label-min ${{ github.event.inputs.tree_label_min }} \
+            --minzoom 8 --maxzoom ${{ github.event.inputs.maxzoom }} --font-group ${{ github.event.inputs.font_group }} \
+            --font-tree ${{ github.event.inputs.font_tree }} --dot-scale ${{ github.event.inputs.dot_scale }} \
+            --shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards }} \
+            --title "Riesenbäume ${{ github.event.inputs.name }} (ab $M m)" \
+            --description "Bäume ab $M m (Punkt, Farbe = Höhe) mit Ringen in 100/250/500 m Abstand" --attribution "$ATTR"
+      - uses: actions/upload-artifact@v4
+        with: {name: "part${{ matrix.shard }}", path: "part${{ matrix.shard }}.mbtiles", retention-days: 3}
+  finish:
+    needs: render
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-scipy python3-pil fonts-dejavu-core
+      - uses: actions/download-artifact@v4
+        with: {path: parts, merge-multiple: true}
+      - name: Merge
+        run: |
+          mkdir -p out logs
+          M=${{ github.event.inputs.min }}
+          python3 scripts/baumhoehe.py pack out/$NAME parts/part*.mbtiles 2>&1 | tee logs/finish.log
+          cp parts/trees_ok.csv out/${{ github.event.inputs.name }}_baeume_ab_${M}m.csv
+          python3 scripts/zielscheibe.py legend out/$NAME-legende.png $M ${{ github.event.inputs.scale_max }} ${{ github.event.inputs.tree_label_min }}
+          cp out/$NAME-legende.png logs/
+          f=$(ls out/*.mbtiles | head -1)
+          python3 scripts/preview.py "$f" logs 9 11 13 15 2>&1 | tee -a logs/finish.log || true
+          ls -l out | tee -a logs/finish.log
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view $TAG -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create $TAG -R "$GITHUB_REPOSITORY" \
+            -t "Riesenbäume ${{ github.event.inputs.name }} (Zielscheiben-Overlay)" -n "Bäume ab ${{ github.event.inputs.min }} m, Ringe in 100/250/500 m, 512-px-WebP.
+          $ATTR. Vegetationshöhenmodell: Open use, Quelle angeben (opendata.swiss)."
+          gh release upload $TAG out/* -R "$GITHUB_REPOSITORY" --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/push_logs.sh logs "ch-ziel finish ${{ github.run_id }} ${{ job.status }}" ch-ziel-logs
