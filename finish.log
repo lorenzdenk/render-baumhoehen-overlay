@@ -1,0 +1,13 @@
+out/thurgau-riesenbaeume.mbtiles: 3305 Kacheln, 3304 verschiedene, z8-15, 33.7 MB
+Vorschau z9/268/178 (24 kB)
+Vorschau z9/268/179 (21 kB)
+Vorschau z11/1074/716 (78 kB)
+Vorschau z11/1076/716 (75 kB)
+Vorschau z13/4311/2867 (43 kB)
+Vorschau z13/4294/2865 (43 kB)
+Vorschau z15/17189/11434 (31 kB)
+Vorschau z15/17219/11477 (26 kB)
+total 34128
+-rw-r--r-- 1 runner runner    16488 Oct 30 07:58 thurgau-riesenbaeume-legende.png
+-rw-r--r-- 1 runner runner 33693696 Oct 30 07:58 thurgau-riesenbaeume.mbtiles
+-rw-r--r-- 1 runner runner  1232759 Oct 30 07:58 thurgau_baeume_ab_45m.csv
