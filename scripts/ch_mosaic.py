@@ -28,9 +28,11 @@ for r0 in range(0, H, B):
         band = ds.GetRasterBand(1)
         a = band.ReadAsArray(0, r0, W, rows).astype(np.float32)
         nd = band.GetNoDataValue()
-        valid = np.isfinite(a) & (a > -50) & (a < 200)
+        valid = np.isfinite(a) & (a > -50) & (a < 300)
         if nd is not None:
             valid &= a != nd
+        if band.DataType == gdal.GDT_Byte:   # Byte-Zwischenformat: Höhe * 2
+            a = a * 0.5
         take = valid & (yr == 0)
         res[take] = a[take]; yr[take] = y - 2000
         cover[y] += int(take.sum())

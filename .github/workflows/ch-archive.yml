@@ -11,37 +11,57 @@ on:
 permissions:
   contents: write
 jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      years: ${{ steps.y.outputs.years }}
+    steps:
+      - id: y
+        run: echo "years=$(python3 -c "import json; print(json.dumps('${{ github.event.inputs.years }}'.split()))")" >> "$GITHUB_OUTPUT"
+  year:
+    needs: setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        year: ${{ fromJson(needs.setup.outputs.years) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy
+      - name: Clip
+        env:
+          GDAL_HTTP_MULTIRANGE: "YES"
+          GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
+          GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+          GDAL_CACHEMAX: "1024"
+        run: |
+          IFS=, read W S E N <<< "${{ github.event.inputs.bbox }}"
+          y=${{ matrix.year }}
+          u=/vsicurl/https://data.geo.admin.ch/ch.bafu.landesforstinventar-vegetationshoehenmodell_lidar/landesforstinventar-vegetationshoehenmodell_lidar_$y/landesforstinventar-vegetationshoehenmodell_lidar_${y}_2056.tif
+          date
+          # volle Auflösung lesen (-ovr NONE) und auf 1 m mit Maximum verkleinern: keine Baumspitze geht verloren
+          gdalwarp -q -ovr NONE -te_srs EPSG:4326 -te $W $S $E $N -t_srs EPSG:2056 -tr 1 1 -tap -r max \
+            -wo NUM_THREADS=ALL_CPUS -co COMPRESS=DEFLATE -co PREDICTOR=3 -co TILED=YES -co BIGTIFF=YES "$u" f.tif
+          python3 scripts/ch_tobyte.py f.tif vhm_$y.tif
+          ls -l vhm_$y.tif; date
+      - uses: actions/upload-artifact@v4
+        with: {name: "vhm_${{ matrix.year }}", path: "vhm_${{ matrix.year }}.tif", retention-days: 3, compression-level: 0}
   archive:
+    needs: year
     runs-on: ubuntu-24.04
     timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin python3-gdal python3-numpy python3-scipy
-      - name: Download and archive
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GDAL_HTTP_MULTIRANGE: "YES"
-          GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
-          GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
-          CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif"
-          GDAL_CACHEMAX: "1024"
+      - uses: actions/download-artifact@v4
+        with: {path: yr, merge-multiple: true}
+      - name: Mosaic and archive
         run: |
-          mkdir -p logs yr
-          (while sleep 120; do bash scripts/push_logs.sh logs "läuft ${{ github.run_id }}" ch-archive-logs >/dev/null 2>&1; done) &
+          mkdir -p logs
           exec > >(tee logs/archive.log) 2>&1
-          IFS=, read W S E N <<< "${{ github.event.inputs.bbox }}"
-          B=https://data.geo.admin.ch/ch.bafu.landesforstinventar-vegetationshoehenmodell_lidar
-          gdalinfo /vsicurl/$B/landesforstinventar-vegetationshoehenmodell_lidar_2024/landesforstinventar-vegetationshoehenmodell_lidar_2024_2056.tif | grep -vE '^\s+[0-9.-]+,' | head -40
-          args=""
-          for y in ${{ github.event.inputs.years }}; do
-            u=/vsicurl/$B/landesforstinventar-vegetationshoehenmodell_lidar_$y/landesforstinventar-vegetationshoehenmodell_lidar_${y}_2056.tif
-            echo "== $y"; date
-            # volle Auflösung lesen (-ovr NONE) und auf 1 m mit Maximum verkleinern: keine Baumspitze geht verloren
-            gdalwarp -q -ovr NONE -te_srs EPSG:4326 -te $W $S $E $N -t_srs EPSG:2056 -tr 1 1 -tap -r max \
-              -wo NUM_THREADS=ALL_CPUS -co COMPRESS=DEFLATE -co PREDICTOR=3 -co TILED=YES -co BIGTIFF=YES "$u" yr/$y.tif \
-              && args="$args $y:yr/$y.tif" || echo "Jahrgang $y fehlt"
-            ls -l yr/$y.tif 2>/dev/null
-          done
+          ls -l yr
+          args=$(for f in yr/vhm_*.tif; do y=$(basename $f .tif); echo -n " ${y#vhm_}:$f"; done)
           python3 scripts/ch_mosaic.py vhm_1m.tif vhm_jahr.tif $args
           rm -rf yr
           python3 scripts/chm_archive.py vhm_1m.tif arch --tile-km 10 --min-tree 45
